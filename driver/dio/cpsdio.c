@@ -1,5 +1,5 @@
 /*
- *  Driver for CPS-DIO-xxx digital I/O
+ *  Driver for CPS-DIO digital I/O
  *
  *  Copyright (C) 2015 syunsuke okamoto <okamoto@contec.jp>
  *
@@ -29,7 +29,7 @@
 #include "../../include/cps_ids.h"
 #include "../../include/cps_extfunc.h"
 
-#define DRV_VERSION	"0.9.3"
+#define DRV_VERSION	"0.9.5"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Digital I/O driver");
@@ -41,14 +41,14 @@ MODULE_VERSION(DRV_VERSION);
 #define CPSDIO_DRIVER_NAME "cpsdio"
 
 typedef struct __cpsdio_driver_file{
-	rwlock_t lock;
+	spinlock_t		lock; 				///< lock
 	struct task_struct *int_callback;
-	unsigned ref;
+	unsigned ref;						///< reference count 
 
-	unsigned int node;
-	unsigned long localAddr;
-	unsigned char __iomem *baseAddr;
-	CPSDIO_DEV_DATA data;
+	unsigned int node;					///< Device Node
+	unsigned long localAddr; 			///< local Address
+	unsigned char __iomem *baseAddr;	///< Memory Address
+	CPSDIO_DEV_DATA data;				///< Device Data
 
 }CPSDIO_DRV_FILE,*PCPSDIO_DRV_FILE;
 
@@ -77,6 +77,18 @@ static const CPSDIO_DEV_DATA cps_dio_data[] = {
 	{
 		.Name = "CPS-DIO-0808BL",
 		.ProductNumber = CPS_DEVICE_DIO0808BL,
+		.inPortNum = 8,
+		.outPortNum = 8
+	},
+	{
+		.Name = "CPS-DIO-0808RL",
+		.ProductNumber = CPS_DEVICE_DIO0808RL,
+		.inPortNum = 8,
+		.outPortNum = 8
+	},
+	{
+		.Name = "CPS-RRY-4PCC",
+		.ProductNumber = CPS_DEVICE_RRY_4PCC,
 		.inPortNum = 8,
 		.outPortNum = 8
 	},
@@ -196,7 +208,7 @@ irqreturn_t cpsdio_isr_func(int irq, void *dev_instance){
 	
 	if( !dev ) return IRQ_NONE;
 
-	if( contec_mcs341_device_IsCategory( ( dev->node + 1 ) , CPS_CATEGORY_DIO ) ){ 
+	if( contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_DIO ) ){ 
 		cpsdio_read_interrupt_status( (unsigned long)dev->baseAddr, &wStatus);
 
 		if( dev->int_callback != NULL && wStatus ){
@@ -208,7 +220,7 @@ irqreturn_t cpsdio_isr_func(int irq, void *dev_instance){
 	
 
 	if(printk_ratelimit()){
-		printk("cpsdio Device Number:%d IRQ interrupt !\n",( dev->node + 1 ) );
+		printk("cpsdio Device Number:%d IRQ interrupt !\n",( dev->node ) );
 	}
 
 	return IRQ_HANDLED;
@@ -222,6 +234,7 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	PCPSDIO_DRV_FILE dev = filp->private_data;
 	unsigned char valb = 0;
 	unsigned short valw = 0;
+	unsigned long flags;
 
 	struct cpsdio_ioctl_arg ioc;
 	memset( &ioc, 0 , sizeof(ioc) );
@@ -235,10 +248,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsdio_read_digital_input((unsigned long)dev->baseAddr , &valb );
 					ioc.val = (unsigned int) valb;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -252,10 +265,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valb = (unsigned char) ioc.val;
 					cpsdio_write_digital_output( (unsigned long)dev->baseAddr , valb );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 		case IOCTL_CPSDIO_OUT_PORT_ECHO:
@@ -265,10 +278,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsdio_read_digital_output_echo((unsigned long)dev->baseAddr , &valb );
 					ioc.val = (unsigned int) valb;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -283,10 +296,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valb = (unsigned char) ioc.val;
 					cpsdio_set_internal_battery( (unsigned long)dev->baseAddr , valb );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -298,10 +311,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valb = (unsigned char) ioc.val;
 					cpsdio_set_digital_filter( (unsigned long)dev->baseAddr , valb );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -312,10 +325,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsdio_get_digital_filter( (unsigned long)dev->baseAddr , &valb );
 					ioc.val = (unsigned int) valb;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 					
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -330,10 +343,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
 					cpsdio_write_interrupt_mask( (unsigned long)dev->baseAddr , valw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -344,10 +357,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsdio_read_interrupt_status( (unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned int) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 					
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -362,10 +375,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsdio_get_interrupt_edge( (unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned int) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 					
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -380,10 +393,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
 					cpsdio_set_interrupt_edge( (unsigned long)dev->baseAddr , valw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -394,10 +407,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsdio_get_dio_portnum( dev->node ,CPSDIO_TYPE_INPUT, &valw );
 					ioc.val = (unsigned int) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 					
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -411,10 +424,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsdio_get_dio_portnum( dev->node ,CPSDIO_TYPE_OUTPUT, &valw );
 					ioc.val = (unsigned int) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 					
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -428,9 +441,9 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsdio_get_dio_devname( dev->node , ioc.str );
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 					
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -442,7 +455,15 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	return 0;
 }
 
-
+/**
+	@function cpsdio_open
+	@param filp : struct file pointer
+	@param inode : node parameter 
+	@param count : file data 
+	@param f_pos : Loff_t pointer
+	@return (errno.h)
+	@note This function is called by open user function.
+**/
 static int cpsdio_open(struct inode *inode, struct file *filp )
 {
 	int ret;
@@ -450,13 +471,14 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	int cnt;
 	unsigned char __iomem *allocMem;
 	unsigned short product_id;
-
-	inode->i_private = inode; /* omajinai */
+	int iRet = 0;
 
 	DEBUG_CPSDIO_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
 
-	if (	filp->private_data != (PCPSDIO_DRV_FILE)NULL ){
-		dev =  (PCPSDIO_DRV_FILE)filp->private_data;
+	if ( inode->i_private != (PCPSDIO_DRV_FILE)NULL ){
+		dev = (PCPSDIO_DRV_FILE)inode->i_private;
+		filp->private_data =  (PCPSDIO_DRV_FILE)dev;
+
 		if( dev->ref ){
 			dev->ref++;
 			return 0;
@@ -464,8 +486,8 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	}
 
 	filp->private_data = (PCPSDIO_DRV_FILE)kmalloc( sizeof(CPSDIO_DRV_FILE) , GFP_KERNEL );
-	
 	dev = (PCPSDIO_DRV_FILE)filp->private_data;
+	inode->i_private = dev;
 
 	dev->node = iminor( inode );
 	
@@ -476,13 +498,17 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	if( allocMem != NULL ){
 		dev->baseAddr = allocMem;
 	}else{
-		return -EBUSY;
+		iRet = -ENOMEM;
+		goto NOT_IOMEM_ALLOCATION;
 	}
 
 	product_id = contec_mcs341_device_productid_get( dev->node );
 	cnt = 0;
 	do{
-		if( cps_dio_data[cnt].ProductNumber == -1 ) break;
+		if( cps_dio_data[cnt].ProductNumber == -1 ) {
+			iRet = -EFAULT;
+			goto NOT_FOUND_DIO_PRODUCT;
+		}
 		if( cps_dio_data[cnt].ProductNumber == product_id ){
 			dev->data = cps_dio_data[cnt];
 			break;
@@ -496,17 +522,30 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 		printk(" request_irq failed.(%x) \n",ret);
 	}
 
+	// spin_lock initialize
+	spin_lock_init( &dev->lock );
+
 	dev->ref = 1;
 
 	return 0;
+NOT_FOUND_DIO_PRODUCT:
+	cps_common_mem_release( dev->localAddr,
+		0xF0,
+		dev->baseAddr ,
+		CPS_COMMON_MEM_REGION);
+
+NOT_IOMEM_ALLOCATION:
+	kfree( dev );
+
+	return iRet;
 }
 
 static int cpsdio_close(struct inode * inode, struct file *filp ){
 
 	PCPSDIO_DRV_FILE dev;
 
-	if (	filp->private_data != (PCPSDIO_DRV_FILE)NULL ){
-		dev =  (PCPSDIO_DRV_FILE)filp->private_data;
+	if ( inode->i_private != (PCPSDIO_DRV_FILE)NULL ){
+		dev = (PCPSDIO_DRV_FILE)inode->i_private;
 		dev->ref--;
 		if( dev->ref == 0 ){
 
@@ -519,7 +558,8 @@ static int cpsdio_close(struct inode * inode, struct file *filp ){
 				
 			kfree( dev );
 			
-			dev = NULL;
+			inode->i_private = (PCPSDIO_DRV_FILE)NULL;
+			filp->private_data = (PCPSDIO_DRV_FILE)NULL;
 		}
 	}
 	return 0;
@@ -592,10 +632,7 @@ static int cpsdio_init(void)
 		}
 	}
 
-
-
 	return 0;
-
 }
 
 static void cpsdio_exit(void)

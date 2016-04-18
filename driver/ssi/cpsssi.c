@@ -29,7 +29,7 @@
 #include "../../include/cps_ids.h"
 #include "../../include/cps_extfunc.h"
 
-#define DRV_VERSION	"1.0.0"
+#define DRV_VERSION	"1.0.1"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS SenSor Input driver");
@@ -40,22 +40,22 @@ MODULE_VERSION(DRV_VERSION);
 #define CPSSSI_DRIVER_NAME "cpsssi"
 
 typedef struct __cpsssi_driver_file{
-	rwlock_t lock;	//</ lock
-	unsigned ref;	//</ reference count 
+	spinlock_t		lock; 				///< lock
+	unsigned ref;						///< reference count 
 
-	unsigned int node;	//</ Device Node
-	unsigned long localAddr; //</ local Address
-	unsigned char __iomem *baseAddr;//</ Memory Address
-	CPSSSI_DEV_DATA data;	//</ Device Data
+	unsigned int node;					///< Device Node
+	unsigned long localAddr; 			///< local Address
+	unsigned char __iomem *baseAddr;	///< Memory Address
+	CPSSSI_DEV_DATA data;				///< Device Data
 
 }CPSSSI_DRV_FILE,*PCPSSSI_DRV_FILE;
 
 typedef struct __cpsssi_xp_offset_software_data{
-	unsigned int node;				//</ Device Node
-	unsigned char ch;					//</ channel
-	unsigned char w3off;			//</ 3 Wire Offset
-	unsigned char w4off;			//</ 4 Wire Offset
-	struct list_head	list;		//</	list of CPSSSI_XP_OFFSET_DATA
+	unsigned int node;				///< Device Node
+	unsigned char ch;					///< channel
+	unsigned char w3off;			///< 3 Wire Offset
+	unsigned char w4off;			///< 4 Wire Offset
+	struct list_head	list;		///<	list of CPSSSI_XP_OFFSET_DATA
 }CPSSSI_XP_OFFSET_DATA,*PCPSSSI_XP_OFFSET_DATA;
 
 static LIST_HEAD(cpsssi_xp_head);
@@ -570,6 +570,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	unsigned int num = 0;
 	unsigned char valb = 0;
 	unsigned int cnt = 0;
+	unsigned long flags;
 	
 	PCPSSSI_4P_CHANNEL_DATA pData = (PCPSSSI_4P_CHANNEL_DATA)dev->data.ChannelData;
 
@@ -596,11 +597,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsssi_command_4p_get_temprature((unsigned long)dev->baseAddr , ioc.ch, &valdw );
 					cpsssi_4p_set_channeldata_lastStatus(ioc.ch, pData, valdw);
 					ioc.val = cpsssi_4p_addsub_channeldata_offset(dev->node, ioc.ch, pData, valdw);
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -614,9 +615,9 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsssi_command_4p_set_start((unsigned long)dev->baseAddr , ioc.ch );
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -630,7 +631,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 //					CPSSSI_COMMAND_4P_GET_STATUS((unsigned long)dev->baseAddr , &valw );
 //						ioc.val = (unsigned long) valw;
 					for( cnt = 0, valdw = 0; cnt < 4 ; cnt ++ ){					
@@ -638,7 +639,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						cpsssi_4p_set_channeldata_lastStatus(cnt , pData, 0x00 );
 					}
 					ioc.val = valdw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -652,10 +653,10 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					CPSSSI_COMMAND_4P_GET_STATUS((unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned long) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -670,10 +671,10 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valdw = ioc.val;
 					cpsssi_command_4p_set_sence_resistance( (unsigned long)dev->baseAddr , valdw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -684,10 +685,10 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					cpsssi_command_4p_get_sence_resistance( (unsigned long)dev->baseAddr , &valdw );
 					ioc.val = valdw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -702,13 +703,13 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}					
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = ioc.ch;
 					valdw = ioc.val;
 					cpsssi_4p_set_channeldata_basic( valw, pData, valdw );
 
 					cpsssi_command_4p_set_channel( (unsigned long)dev->baseAddr, valw, valdw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -719,11 +720,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.ch;
 					cpsssi_command_4p_get_channel( (unsigned long)dev->baseAddr, valw, &valdw );
 					ioc.val = valdw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -740,12 +741,12 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					
 					valw = (unsigned short) ioc.ch;
 					valb = (unsigned char)ioc.val;
 					cpsssi_4p_set_channeldata_offset( dev->node, valw, pData, valb );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
@@ -756,11 +757,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.ch;
 					cpsssi_4p_get_channeldata_offset( dev->node, valw, pData, &valb );
 					ioc.val = (unsigned long) valb;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
@@ -777,19 +778,19 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 
-					write_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					
 					valw = (unsigned short) ioc.val;
 
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_SSI_4P: num = (unsigned short) ioc.ch;break;
 					default :
-						write_unlock(&dev->lock);
+						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
 
 					cpsssi_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_SSI, num,  valw );
-					write_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSSSI_EEPROM(KERN_INFO"EEPROM-WRITE:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 					break;
@@ -801,16 +802,16 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_SSI_4P: num = (unsigned short) ioc.ch;break;
 					default :
-						read_unlock(&dev->lock);
+						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
 					cpsssi_read_eeprom( dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_SSI, num, &valw );
 					ioc.val = (unsigned long) valw;
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSSSI_EEPROM(KERN_INFO"EEPROM-READ:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 				
@@ -822,7 +823,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 		case IOCTL_CPSSSI_CLEAR_EEPROM:
 
-					read_lock(&dev->lock);
+					spin_lock_irqsave(&dev->lock, flags);
 
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_SSI_4P: num = dev->data.ssiChannel;break;
@@ -831,7 +832,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					cpsssi_clear_fpga_extension_reg(dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_SSI, num );
 
 					cpsssi_clear_eeprom( dev->node );
-					read_unlock(&dev->lock);
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSSSI_EEPROM(KERN_INFO"EEPROM-CLEAR\n");
 					break;
@@ -840,7 +841,15 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	return 0;
 }
 
-
+/**
+	@function cpsssi_open
+	@param filp : struct file pointer
+	@param inode : node parameter 
+	@param count : file data 
+	@param f_pos : Loff_t pointer
+	@return (errno.h)
+	@note This function is called by open user function.
+**/ 
 static int cpsssi_open(struct inode *inode, struct file *filp )
 {
 	int ret;
@@ -848,13 +857,15 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	int cnt;
 	unsigned char __iomem *allocMem;
 	unsigned short product_id;
-
-	inode->i_private = inode; /* omajinai */
+	int iRet = 0;
 
 	DEBUG_CPSSSI_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
 
-	if (	filp->private_data != (PCPSSSI_DRV_FILE)NULL ){
-		dev =  (PCPSSSI_DRV_FILE)filp->private_data;
+
+	if ( inode->i_private != (PCPSSSI_DRV_FILE)NULL ){
+		dev =  (PCPSSSI_DRV_FILE)inode->i_private;
+		filp->private_data = (PCPSSSI_DRV_FILE)dev;
+
 		if( dev->ref ){
 			dev->ref++;
 			return 0;
@@ -862,8 +873,8 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	}
 
 	filp->private_data = (PCPSSSI_DRV_FILE)kmalloc( sizeof(CPSSSI_DRV_FILE) , GFP_KERNEL );
-	
 	dev = (PCPSSSI_DRV_FILE)filp->private_data;
+	inode->i_private = dev;
 
 	dev->node = iminor( inode );
 	
@@ -874,13 +885,17 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	if( allocMem != NULL ){
 		dev->baseAddr = allocMem;
 	}else{
+		iRet = -ENOMEM;
 		goto NOT_IOMEM_ALLOCATION;
 	}
 
 	product_id = contec_mcs341_device_productid_get( dev->node );
 	cnt = 0;
 	do{
-		if( cps_ssi_data[cnt].ProductNumber == -1 ) goto NOT_FOUND_SSI_PRODUCT;
+		if( cps_ssi_data[cnt].ProductNumber == -1 ) {
+			iRet = -EFAULT;
+			goto NOT_FOUND_SSI_PRODUCT;
+		}
 		if( cps_ssi_data[cnt].ProductNumber == product_id ){
 			dev->data = cps_ssi_data[cnt];
 			break;
@@ -895,6 +910,7 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 
 	if( dev->data.ChannelData == NULL ){
 		printk(KERN_INFO" channel data allocation failed.\n");
+		iRet = -ENOMEM;
 		goto NOT_FOUND_SSI_PRODUCT;
 	}
 
@@ -906,6 +922,9 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	if( ret ){
 		printk(" request_irq failed.(%x) \n",ret);
 	}
+
+	// spin_lock initialize
+	spin_lock_init( &dev->lock );
 
 	dev->ref = 1;
 
@@ -923,15 +942,15 @@ NOT_FOUND_SSI_PRODUCT:
 NOT_IOMEM_ALLOCATION:
 	kfree( dev );
 
-	return -EFAULT;
+	return iRet;
 }
 
 static int cpsssi_close(struct inode * inode, struct file *filp ){
 
 	PCPSSSI_DRV_FILE dev;
 
-	if (	filp->private_data != (PCPSSSI_DRV_FILE)NULL ){
-		dev =  (PCPSSSI_DRV_FILE)filp->private_data;
+	if ( inode->i_private != (PCPSSSI_DRV_FILE)NULL ){
+		dev =  (PCPSSSI_DRV_FILE)inode->i_private;
 		dev->ref--;
 		if( dev->ref == 0 ){
 
@@ -945,7 +964,8 @@ static int cpsssi_close(struct inode * inode, struct file *filp ){
 				
 			kfree( dev );
 			
-			dev = NULL;
+			inode->i_private = (PCPSSSI_DRV_FILE)NULL;
+			filp->private_data = (PCPSSSI_DRV_FILE)NULL;
 		}
 	}
 	return 0;

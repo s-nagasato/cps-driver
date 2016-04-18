@@ -1,9 +1,10 @@
 #CC = gcc
 #LD = ld
-#LIB_DIR=/usr/lib
+
 CC = arm-linux-gnueabi-gcc
 LD = arm-linux-gnueabi-ld
 LIB_DIR=/usr/arm-linux-gnueabi/lib/
+LIB_DIR_SELF=/usr/local/lib
 CFLAGS= -g -Wall
 VERSION =1.0.4
 
@@ -16,7 +17,7 @@ libCpsAio.so:
 	${CC} -shared -O2 -Wl,-soname,libCpsAio.so -o libCpsAio.so.$(VERSION) libcpsaio.o -lm
 
 install:
-	cp libCpsAio.so.$(VERSION) $(LIB_DIR)
+	cp libCpsAio.so.$(VERSION) $(LIB_DIR_SELF)
 	ldconfig
 
 install-cross:

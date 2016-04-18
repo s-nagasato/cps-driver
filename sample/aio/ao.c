@@ -102,11 +102,18 @@ int main(int argc, char *argv[]){
 		else
 			sscanf( argv[4], "%lf", &dblVal);
 
-		for( cnt = 0; cnt < ch;cnt ++ ){
+		if( isMulti ){
+			for( cnt = 0; cnt < ch;cnt ++ ){
+				if( isEx == 0 )
+					ao_dat[cnt] = iVal;
+				else
+					ao_dat_ex[cnt] = dblVal;
+			}
+		}else{
 			if( isEx == 0 )
-				ao_dat[cnt] = iVal;
+				ao_dat[ch] = iVal;
 			else
-				ao_dat_ex[cnt] = dblVal;
+				ao_dat_ex[ch] = dblVal;
 		}
 	}
 

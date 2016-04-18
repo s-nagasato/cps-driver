@@ -10,10 +10,10 @@ VERSION =1.0.0
 all:libcpsssi.o libCpsSsi.so
 
 libcpsssi.o:	
-	${CC} libcpsssi.c -c -fPIC -o libcpsssi.o -lm
+	${CC} -z defs libcpsssi.c -c -fPIC -o libcpsssi.o -lm
 
 libCpsSsi.so:
-	${CC} -shared -O2 -Wl,-soname,libCpsSsi.so -o libCpsSsi.so.$(VERSION) libcpsssi.o -lm
+	${CC} -z defs -shared -O2 -Wl,-soname,libCpsSsi.so -o libCpsSsi.so.$(VERSION) libcpsssi.o -lm
 
 install:
 	cp libCpsSsi.so.$(VERSION) $(LIB_DIR)

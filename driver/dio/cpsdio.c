@@ -19,6 +19,7 @@
 #include <asm/uaccess.h>
 #include <linux/interrupt.h>
 #include <asm/io.h>
+#include <asm/signal.h>
 #include <linux/device.h>
 
 #include <linux/slab.h>
@@ -28,9 +29,12 @@
 #include "../../include/cps_ids.h"
 #include "../../include/cps_extfunc.h"
 
+#define DRV_VERSION	"0.9.3"
+
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Digital I/O driver");
-MODULE_AUTHOR("CONTEC");
+MODULE_AUTHOR("syunsuke okamoto");
+MODULE_VERSION(DRV_VERSION);
 
 #include "../../include/cpsdio.h"
 
@@ -38,6 +42,7 @@ MODULE_AUTHOR("CONTEC");
 
 typedef struct __cpsdio_driver_file{
 	rwlock_t lock;
+	struct task_struct *int_callback;
 	unsigned ref;
 
 	unsigned int node;
@@ -47,6 +52,11 @@ typedef struct __cpsdio_driver_file{
 
 }CPSDIO_DRV_FILE,*PCPSDIO_DRV_FILE;
 
+#if 0
+#define DEBUG_CPSDIO_OPEN(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSDIO_OPEN(fmt...)	do { } while (0)
+#endif
 
 static int cpsdio_max_devs;			/*device count */
 static int cpsdio_major = 0;
@@ -140,6 +150,41 @@ static long cpsdio_get_interrupt_edge( unsigned long BaseAddr, unsigned short *w
 	return 0;
 }
 
+#define CPSDIO_TYPE_INPUT 0
+#define CPSDIO_TYPE_OUTPUT 1
+
+static long cpsdio_get_dio_portnum( int node, unsigned char type, unsigned short *wNum )
+{
+	int product_id, cnt;
+	product_id = contec_mcs341_device_productid_get( node );
+
+	for(cnt = 0; cps_dio_data[cnt].ProductNumber != -1; cnt++){
+		if( cps_dio_data[cnt].ProductNumber == product_id ){
+			if( type == CPSDIO_TYPE_INPUT ){
+				*wNum = cps_dio_data[cnt].inPortNum;
+			}else if( type == CPSDIO_TYPE_OUTPUT ){
+				*wNum = cps_dio_data[cnt].outPortNum;
+			}
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static long cpsdio_get_dio_devname( int node, unsigned char devName[] )
+{
+	int product_id, cnt;
+	product_id = contec_mcs341_device_productid_get(node);
+
+	for(cnt = 0; cps_dio_data[cnt].ProductNumber != -1; cnt++){
+		if( cps_dio_data[cnt].ProductNumber == product_id ){
+			strcpy( devName, cps_dio_data[cnt].Name );
+			return 0;
+		}
+	}
+	return 1;
+}
+
 /***** Interrupt function *******************************/
 static const int AM335X_IRQ_NMI=7;
 
@@ -153,6 +198,11 @@ irqreturn_t cpsdio_isr_func(int irq, void *dev_instance){
 
 	if( contec_mcs341_device_IsCategory( ( dev->node + 1 ) , CPS_CATEGORY_DIO ) ){ 
 		cpsdio_read_interrupt_status( (unsigned long)dev->baseAddr, &wStatus);
+
+		if( dev->int_callback != NULL && wStatus ){
+			// sending user callback function ( kernel context to user context <used signal SIGUSR1 > )
+			send_sig( SIGUSR2, dev->int_callback, 1 );
+		}
 	}
 	else return IRQ_NONE;
 	
@@ -336,6 +386,57 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					write_unlock(&dev->lock);
 
 					break;
+
+		case IOCTL_CPSDIO_GET_INP_PORTNUM:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					read_lock(&dev->lock);
+					cpsdio_get_dio_portnum( dev->node ,CPSDIO_TYPE_INPUT, &valw );
+					ioc.val = (unsigned int) valw;
+					read_unlock(&dev->lock);
+					
+					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					break;
+
+		case IOCTL_CPSDIO_GET_OUTP_PORTNUM:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					read_lock(&dev->lock);
+					cpsdio_get_dio_portnum( dev->node ,CPSDIO_TYPE_OUTPUT, &valw );
+					ioc.val = (unsigned int) valw;
+					read_unlock(&dev->lock);
+					
+					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					break;
+
+		case IOCTL_CPSDIO_GET_DEVICE_NAME:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					read_lock(&dev->lock);
+					cpsdio_get_dio_devname( dev->node , ioc.str );
+					read_unlock(&dev->lock);
+					
+					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					break;
+
 	}
 
 	return 0;
@@ -346,10 +447,13 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 {
 	int ret;
 	PCPSDIO_DRV_FILE dev;
-
+	int cnt;
 	unsigned char __iomem *allocMem;
+	unsigned short product_id;
 
 	inode->i_private = inode; /* omajinai */
+
+	DEBUG_CPSDIO_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
 
 	if (	filp->private_data != (PCPSDIO_DRV_FILE)NULL ){
 		dev =  (PCPSDIO_DRV_FILE)filp->private_data;
@@ -371,8 +475,20 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 
 	if( allocMem != NULL ){
 		dev->baseAddr = allocMem;
+	}else{
+		return -EBUSY;
 	}
 
+	product_id = contec_mcs341_device_productid_get( dev->node );
+	cnt = 0;
+	do{
+		if( cps_dio_data[cnt].ProductNumber == -1 ) break;
+		if( cps_dio_data[cnt].ProductNumber == product_id ){
+			dev->data = cps_dio_data[cnt];
+			break;
+		}
+		cnt++;
+	}while( 1 );
 
 	ret = request_irq(AM335X_IRQ_NMI, cpsdio_isr_func, IRQF_SHARED, "cps-dio-intr", dev);
 
@@ -380,6 +496,7 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 		printk(" request_irq failed.(%x) \n",ret);
 	}
 
+	dev->ref = 1;
 
 	return 0;
 }
@@ -425,10 +542,15 @@ static int cpsdio_init(void)
 	int ret = 0;
 	int major;
 	int cnt;
-
 	struct device *devlp = NULL;
 
-	printk(" cpsdio : driver init.\n");
+	// CPS-MCS341 Device Init
+	contec_mcs341_controller_cpsDevicesInit();
+
+	// Get Device Number
+	cpsdio_max_devs = contec_mcs341_controller_getDeviceNum();
+
+	printk(" cpsdio : driver init. devices %d\n", cpsdio_max_devs);
 
 	ret = alloc_chrdev_region( &dev, 0, cpsdio_max_devs, CPSDIO_DRIVER_NAME );
 
@@ -439,7 +561,7 @@ static int cpsdio_init(void)
 	cdev_init( &cpsdio_cdev, &cpsdio_fops );
 	cpsdio_cdev.owner = THIS_MODULE;
 	cpsdio_cdev.ops	= &cpsdio_fops;
-	ret = cdev_add( &cpsdio_cdev, MKDEV(cpsdio_major, cpsdio_minor), 1 );
+	ret = cdev_add( &cpsdio_cdev, MKDEV(cpsdio_major, cpsdio_minor), cpsdio_max_devs );
 
 	if( ret ){
 		unregister_chrdev_region( dev, cpsdio_max_devs );
@@ -453,12 +575,6 @@ static int cpsdio_init(void)
 		unregister_chrdev_region( dev, cpsdio_max_devs );
 		return PTR_ERR(cpsdio_class);
 	}
-
-	// CPS-MCS341 Device Init 
-	contec_mcs341_controller_cpsDevicesInit();
-
-	// Get Device Number 
-	cpsdio_max_devs = contec_mcs341_controller_getDeviceNum();
 
 	for( cnt = cpsdio_minor; cnt < ( cpsdio_minor + cpsdio_max_devs ) ; cnt ++){
 		if( contec_mcs341_device_IsCategory(cnt , CPS_CATEGORY_DIO ) ){

@@ -1,9 +1,9 @@
 #CC = gcc
 CC = arm-linux-gnueabi-gcc
 
-all:test.o
+all:dio.o
 
-test.o:	
-	${CC} -o test test.c -lCpsDio
+dio.o:	
+	${CC} -o dio dio.c -lCpsDio
 clean:
-	rm -f test
+	rm -f dio

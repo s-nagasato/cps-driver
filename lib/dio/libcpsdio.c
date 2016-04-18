@@ -21,8 +21,38 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <unistd.h>
+#include <signal.h>
 #include "../../include/cpsdio.h"
 #include "../../include/libcpsdio.h"
+
+typedef struct __contec_cps_dio_int_callback__
+{
+	PCONTEC_CPS_DIO_INT_CALLBACK func;
+	CONTEC_CPS_DIO_INT_CALLBACK_DATA data;
+}CONTEC_CPS_DIO_INT_CALLBACK_LIST, *PCONTEC_CPS_DIO_INT_CALLBACK_LIST;
+
+CONTEC_CPS_DIO_INT_CALLBACK_LIST contec_cps_dio_cb_list[CPS_DEVICE_MAX_NUM];
+
+void _contec_signal_proc( int signo )
+{
+	int cnt;
+	if( signo == SIGUSR2 ){
+		for( cnt = 0; cnt < CPS_DEVICE_MAX_NUM ; cnt ++){
+			if( contec_cps_dio_cb_list[cnt].func != (PCONTEC_CPS_DIO_INT_CALLBACK)NULL ){
+				
+				contec_cps_dio_cb_list[cnt].func(
+					contec_cps_dio_cb_list[cnt].data.id,
+					DIOM_INTERRUPT,
+					contec_cps_dio_cb_list[cnt].data.wParam,
+					contec_cps_dio_cb_list[cnt].data.lParam,
+					contec_cps_dio_cb_list[cnt].data.Param
+				);
+			}
+		}
+	}
+}
+
 
 unsigned long ContecCpsDioInit( char *DeviceName, short *Id )
 {
@@ -59,8 +89,18 @@ unsigned long ContecCpsDioQueryDeviceName( short Id, char *DeviceName, char *Dev
 	return DIO_ERR_SUCCESS;
 }
 
-unsigned long ContecCpsDioGetMaxPort( short Id, short InPortNum, short OutPortNum )
+unsigned long ContecCpsDioGetMaxPort( short Id, short *InPortNum, short *OutPortNum )
 {
+
+	struct cpsdio_ioctl_arg	arg;
+
+	ioctl( Id, IOCTL_CPSDIO_GET_INP_PORTNUM, &arg );
+
+	*InPortNum = (short)( arg.val );
+
+	ioctl( Id, IOCTL_CPSDIO_GET_OUTP_PORTNUM, &arg );
+
+	*OutPortNum = (short)( arg.val );
 
 	return DIO_ERR_SUCCESS;
 }
@@ -246,7 +286,7 @@ unsigned long ContecCpsDioGetDigitalFilter( short Id, unsigned char *FilterValue
 	return DIO_ERR_SUCCESS;
 }
 /**** Interrupt Event Functions ****/
-unsigned long ContecCpsDioSetInterruptEvent( short Id, short BitNum, short Logic )
+unsigned long ContecCpsDioNotifyInterrupt( short Id, short BitNum, short Logic )
 {
 	struct cpsdio_ioctl_arg	arg;
 
@@ -260,13 +300,21 @@ unsigned long ContecCpsDioSetInterruptEvent( short Id, short BitNum, short Logic
 
 	ioctl( Id, IOCTL_CPSDIO_SET_INT_EGDE, &arg );
 
+	/****  process_id Set ****/
+
+	arg.val = getpid();
+
+	ioctl( Id, IOCTL_CPSDIO_SET_CALLBACK_PROCESS, &arg );
+
 	return DIO_ERR_SUCCESS;
 }
 
-unsigned long ContecCpsDioSetInterruptCallBackProc( short Id, short BitNum, short Logic )
+unsigned long ContecCpsDioSetInterruptCallBackProc( short Id, PCONTEC_CPS_DIO_INT_CALLBACK cb, void* Param )
 {
 	struct cpsdio_ioctl_arg	arg;
 
+	/*** signal ***/
+	signal( SIGUSR2, _contec_signal_proc );
 
 	return DIO_ERR_SUCCESS;
 }

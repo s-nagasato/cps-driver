@@ -42,6 +42,8 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 
+#include <linux/uaccess.h> 
+
 #include "8250.h"
 
 #include "serial_cpscom.h"
@@ -49,6 +51,8 @@
 #ifdef CONFIG_SPARC
 #include "suncore.h"
 #endif
+
+#define DRV_VERSION	"1.0.1"
 
 /*
  * Configuration:
@@ -2887,6 +2891,95 @@ cpscom_verify_port(struct uart_port *port, struct serial_struct *ser)
 	return 0;
 }
 
+/***
+	Ver.1.0.1 Ioctl called AutoRS485 Enable/Disable Function.  (from CPS16550 only )
+***/
+
+#define UART_FCTR_RS485 ( 0x08 )
+static int cpscom_ioctl(struct uart_port *port, unsigned int cmd, unsigned long arg)
+{
+	struct uart_8250_port *up;
+	unsigned long flags;
+	unsigned int mode;
+	unsigned long autoRs485Enable = 0;
+	unsigned char fctr, old_lcr;
+
+	up = container_of(port, struct uart_8250_port, port);
+
+	switch( cmd ){
+	case TIOCSRS485:
+		if ( up->port.iotype != UPIO_CPS ) return -ENOTTY;
+ 
+		if (copy_from_user(&autoRs485Enable, (void __user *) arg,
+			sizeof(unsigned long)))
+				return -EFAULT;
+
+		spin_lock_irqsave(&up->port.lock, flags);
+
+		/* Disable interrupts from this port */
+		mode = up->ier;
+		up->ier = 0;
+		serial_out(up, UART_IER, 0);
+
+		old_lcr = serial_inp(up, UART_LCR);
+		serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_B);
+
+		fctr = serial_inp(up, UART_FCTR);
+
+		if( autoRs485Enable )
+			serial_outp(up, UART_FCTR, fctr | UART_FCTR_RS485 );
+		else
+			serial_outp(up, UART_FCTR, fctr & ~UART_FCTR_RS485 );
+
+		serial_outp(up, UART_LCR, old_lcr);
+
+		/* Enable interrupts */
+		up->ier = mode;
+		serial_out(up, UART_IER, up->ier);
+
+		spin_unlock_irqrestore(&up->port.lock, flags);
+
+		break;
+	case TIOCGRS485:
+		if ( up->port.iotype != UPIO_CPS ) return -ENOTTY; 
+
+		spin_lock_irqsave(&up->port.lock, flags);
+
+		/* Disable interrupts from this port */
+		mode = up->ier;
+		up->ier = 0;
+		serial_out(up, UART_IER, 0);
+
+		old_lcr = serial_inp(up, UART_LCR);
+		serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_B);
+
+		fctr = serial_inp(up, UART_FCTR);
+
+		if( fctr & UART_FCTR_RS485 )
+			autoRs485Enable = 1;
+		else
+			autoRs485Enable = 0;
+
+		serial_outp(up, UART_LCR, old_lcr);
+
+		/* Enable interrupts */
+		up->ier = mode;
+		serial_out(up, UART_IER, up->ier);
+
+		spin_unlock_irqrestore(&up->port.lock, flags);
+
+		if (copy_to_user((void __user *) arg, &autoRs485Enable,
+			sizeof(unsigned long)))
+				return -EFAULT;
+
+		break;
+	default:
+		return -ENOIOCTLCMD;
+
+	}
+	return 0;
+}
+
 static const char *
 cpscom_type(struct uart_port *port)
 {
@@ -2916,6 +3009,7 @@ static struct uart_ops cpscom_pops = {
 	.request_port	= cpscom_request_port,
 	.config_port	= cpscom_config_port,
 	.verify_port	= cpscom_verify_port,
+	.ioctl = cpscom_ioctl,		// Ver.1.0.1 added
 #ifdef CONFIG_CONSOLE_POLL
 	.poll_get_char = cpscom_get_poll_char,
 	.poll_put_char = cpscom_put_poll_char,
@@ -3620,6 +3714,8 @@ EXPORT_SYMBOL(cpscom_resume_port);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS serial driver");
+
+MODULE_VERSION(DRV_VERSION);
 
 module_param(share_irqs, uint, 0644);
 MODULE_PARM_DESC(share_irqs, "Share IRQs with other non-8250/16x50 devices"

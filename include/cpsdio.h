@@ -1,6 +1,7 @@
 /*** cpsdio.h ******************************/
 #include <linux/ioctl.h>
 #include <linux/sched.h>
+#include "cps_def.h"
 
 /* structure */
 typedef struct __cpsdio_device_data{
@@ -14,6 +15,7 @@ typedef struct __cpsdio_device_data{
 struct cpsdio_ioctl_arg{
 	unsigned int port;
 	unsigned int val;
+	unsigned char str[32];
 };
 
 
@@ -51,4 +53,8 @@ struct cpsdio_ioctl_arg{
 #define IOCTL_CPSDIO_GET_INT_STATUS	_IOR(CPSDIO_MAGIC, 10, struct cpsdio_ioctl_arg)
 #define IOCTL_CPSDIO_SET_INT_EGDE	_IOW(CPSDIO_MAGIC, 11, struct cpsdio_ioctl_arg)
 #define IOCTL_CPSDIO_GET_INT_EGDE	_IOR(CPSDIO_MAGIC, 12, struct cpsdio_ioctl_arg)
+#define IOCTL_CPSDIO_GET_INP_PORTNUM	_IOR(CPSDIO_MAGIC, 13, struct cpsdio_ioctl_arg)
+#define IOCTL_CPSDIO_GET_OUTP_PORTNUM	_IOR(CPSDIO_MAGIC, 14, struct cpsdio_ioctl_arg)
+#define IOCTL_CPSDIO_GET_DEVICE_NAME	_IOR(CPSDIO_MAGIC, 15, struct cpsdio_ioctl_arg)
+#define IOCTL_CPSDIO_SET_CALLBACK_PROCESS _IOW(CPSDIO_MAGIC, 16, struct cpsdio_ioctl_arg)
 /**************************************************/

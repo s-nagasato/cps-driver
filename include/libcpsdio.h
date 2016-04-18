@@ -1,3 +1,4 @@
+#include "cps_def.h"
 
 #define DIO_ERR_SUCCESS		0
 #define DIO_ERR_INI_RESOURCE	1
@@ -21,26 +22,27 @@
 #define DIO_ERR_DLL_CALLBACK		10400
 #define DIO_ERR_DLL_DIRECTION		10500
 
-
+#define DIOM_INTERRUPT	0x1300
 
 /****  Structure ****/
-typedef struct __contec_cps_dio_int_callback__
+typedef struct __contec_cps_dio_int_callback_data__
 {
 	short id;
-	short	Massage;
-	long		wParam;
+	short Message;
+	short	wParam;
 	long		lParam;
 	void*	Param;
 
-}CONTEC_CPS_DIO_INT_CALLBACK, *PCONTEC_CPS_DIO_INT_CALLBACK;
+}CONTEC_CPS_DIO_INT_CALLBACK_DATA, *PCONTEC_CPS_DIO_INT_CALLBACK_DATA;
 
+typedef void (*PCONTEC_CPS_DIO_INT_CALLBACK)(short, short, long, long, void *);
 
 /**** Common Functions ****/
 extern unsigned long ContecCpsDioInit( char *DeviceName, short *Id );
 extern unsigned long ContecCpsDioExit( short Id );
 extern unsigned long ContecCpsDioGetErrorStrings( unsigned long code, char *Str );
 extern unsigned long ContecCpsDioQueryDeviceName( short Id, char *DeviceName, char *Device );
-extern unsigned long ContecCpsDioGetMaxPort( short Id, short InPortNum, short OutPortNum );
+extern unsigned long ContecCpsDioGetMaxPort( short Id, short *InPortNum, short *OutPortNum );
 
 /**** Input Functions ****/
 extern unsigned long ContecCpsDioInpByte( short Id, short Num, unsigned char *Data);
@@ -63,6 +65,6 @@ extern unsigned long ContecCpsDioSetDigitalFilter( short Id, unsigned char Filte
 extern unsigned long ContecCpsDioGetDigitalFilter( short Id, unsigned char *FilterValue );
 
 /**** INTERRUPT Event Functions ****/
-extern unsigned long ContecCpsDioSetInterruptEvent( short Id, short BitNum, short Logic );
-extern unsigned long ContecCpsDioSetInterruptCallBackProc( short Id, short BitNum, short Logic );
+extern unsigned long ContecCpsDioNotifyInterrupt( short Id, short BitNum, short Logic );
+extern unsigned long ContecCpsDioSetInterruptCallBackProc( short Id, PCONTEC_CPS_DIO_INT_CALLBACK cb, void* Param );
 

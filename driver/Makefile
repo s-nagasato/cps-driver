@@ -1,4 +1,4 @@
-subdirs = system com dio
+subdirs = system com dio aio ssi
 MAKE=make --no-print-directory
 
 all:	
@@ -9,6 +9,11 @@ all:
 modules_install:
 	@for subdir in $(subdirs) ; do \
 	(cd $$subdir && $(MAKE) modules_install ) ;\
+	done
+
+release_copy:
+	@for subdir in $(subdirs) ; do \
+	(cd $$subdir && $(MAKE) release_copy ) ;\
 	done
 
 clean:

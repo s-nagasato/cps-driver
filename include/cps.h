@@ -1,5 +1,8 @@
 /*** cps.h ******************************/
 
+
+
+
 /* Device ID Infomation */
 typedef struct __cps_device_id{
 	unsigned long revision;
@@ -8,6 +11,13 @@ typedef struct __cps_device_id{
 	unsigned long physicalId;
 	unsigned long logicalId;
 }cps_device_id;
+
+/**** Child Unit Number Macro ****/
+#define CPS_CHILD_UNIT_NONE	0x00	///< None
+#define CPS_CHILD_UNIT_INF_MC341B_00	0x01	///< 3G UNIT (SL8084T)
+#define CPS_CHILD_UNIT_INF_MC341B_10	0x02	///< RS-422A/485 UNIT
+#define CPS_CHILD_UNIT_INF_MC341B_20	0x03 ///< 920MHz UNIT ( CMM-920GP2 )
+#define CPS_CHILD_UNIT_JIG_MC341B_00	0x100 ///< KENSA UNIT
 
 /* Controller Address */
 #define CPS_CONTROLLER_MCS341_PRODUCTVERSION_ADDR	(0x00)
@@ -61,7 +71,6 @@ typedef struct __cps_device_id{
 #define CPS_MCS341_SYSTEMINIT_INTERRUPT_END ( 0x04 )
 #define CPS_MCS341_SYSTEMINIT_INIT_END ( 0x08 )
 
-
 #define CPS_MCS341_SYSTEMINIT_BUSY(val) ( val & (CPS_MCS341_SYSTEMINIT_RESETBUSY | CPS_MCS341_SYSTEMINIT_INITBUSY) )
 #define CPS_MCS341_SYSTEMINIT_INITEND(val) ( val & (CPS_MCS341_SYSTEMINIT_INTERRUPT_END|CPS_MCS341_SYSTEMINIT_INIT_END) )
 #define CPS_MCS341_SYSTEMINIT_DIPSWITCH( n , val ) ( ( ( val & 0xF0 ) >> 4 ) & (1 << n) )
@@ -108,22 +117,48 @@ typedef struct __cps_device_id{
 #define CPS_MCS341_DIO_DOECHOVALUE_GET(n,val) ( ( (val & 0xF0) >> 4) & (1 << n) )
 #define CPS_MCS341_DIO_DOVALUE_SET(n,val) ( val << (n + 4) )
 
-
 /* Device Address (Common) */
 #define CPS_DEVICE_COMMON_REVISION_ADDR	 (0x00)
 #define CPS_DEVICE_COMMON_CATEGORY_ADDR		(0x01)
 #define CPS_DEVICE_COMMON_PRODUCTID_ADDR		(0x02)
 #define CPS_DEVICE_COMMON_PHYSICALID_ADDR	(0x04)
 #define CPS_DEVICE_COMMON_LOGICALID_ADDR		(0x06)
+#define CPS_DEVICE_COMMON_ROM_WRITE_ADDR		(0x0C)
 
 #define CPS_DEVICE_COMMON_MIRROR_REG_ADDR(x)	(0x0E + x)
 
 #define CPS_DEVICE_COMMON_CATEGORY_GET(val) ( ( val & 0xF0 ) >> 4 )
 #define CPS_DEVICE_COMMON_REVISION_GET(val) ( val & 0x0F )
 
-#define CPS_DEVICE_MAX_NUM	40
+#define CPS_DEVICE_COMMON_ROM_WRITE_CMD_FINISHED	(0x0000)
+#define CPS_DEVICE_COMMON_ROM_WRITE_CMD_ENABLE	(0x0001)
+#define CPS_DEVICE_COMMON_ROM_WRITE_DATA_READ	(0x0004)
+#define CPS_DEVICE_COMMON_ROM_WRITE_DATA_ERASE	(0x0008)
+#define CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_DISABLE	(0x0010)
+#define CPS_DEVICE_COMMON_ROM_WRITE_DATA_WRITE	(0x0020)
+#define CPS_DEVICE_COMMON_ROM_WRITE_ADDR_INIT	(0x0040)
+#define CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_ENABLE	(0x0080)
+
+/* Device Address (Extension) */
+#define CPS_DEVICE_EXTENSION_VALUE(n) (0x02 * (n+1) )
+
+#define CPS_DEVICE_COMMON_ROM_WRITE_PAGE_COMMON 0x00
+#define CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AI 0x01
+#define CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO 0x02
+#define CPS_DEVICE_COMMON_ROM_WRITE_PAGE_SSI 0x08
+
+#define CPS_DEVICE_COMMON_CLEAR 0x04
+#define CPS_DEVICE_COMMON_WRITE	0x02
+#define CPS_DEVICE_COMMON_READ	0x01
+
 #define CPS_DEVICE_INIT_TIMEOUT 1000
 
+#include "cps_def.h"
+
+#include <linux/gpio.h>
+#define CPS_CONTROLLER_MCS341_RESET_PIN GPIO_TO_PIN( 2, 23 )		// GPIO 87
+#define CPS_CONTROLLER_MCS341_RESET_POUT GPIO_TO_PIN( 3, 9 )		//GPIO 105
+#define CPS_CONTROLLER_MCS341_TICK	(HZ / 50) // 20 msec
 
 
 /*********************************************************/

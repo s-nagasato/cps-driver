@@ -5,10 +5,17 @@
 #define CPSAIO_MAX_BUFFER	8192	//</ max buffer size
 
 /* structure */
+typedef struct __cpsaio_buffer{
+	unsigned char *data;
+	unsigned long size;
+}CPSAIO_BUFFER_DATA, *PCPSAIO_BUFFER_DATA;
+
+
 typedef struct __cpsaio_inout_data{
 	unsigned int Resolution;
 	unsigned int Channel;
 	unsigned int Range;
+	CPSAIO_BUFFER_DATA softbuf;
 }CPSAIO_INOUT_DATA, *PCPSAIO_INOUT_DATA;
 
 typedef struct __cpsaio_device_data{
@@ -28,23 +35,23 @@ typedef struct __cpsaio_device_data{
 }CPSAIO_DEV_DATA, *PCPSAIO_DEV_DATA;
 	
 struct cpsaio_ioctl_arg{
-	unsigned char inout;	//</ in or out
-	unsigned short ch;	//</ channel
-	unsigned long val;	//</ value
+	unsigned char inout;	///< in or out
+	unsigned short ch;	///< channel
+	unsigned long val;	///< value
 };
 
 
 
 struct cpsaio_direct_arg{
-	unsigned long addr;	//</ address
-	unsigned long val;	//</ value
+	unsigned long addr;	///< address
+	unsigned long val;	///< value
 };
 
 struct cpsaio_direct_command_arg{
-	unsigned long addr;	//</ address
-	unsigned long val;	//</ value
-	unsigned char isEcu;	//</ ecu or 
-	unsigned int size;	//</ size ( 1 , 2 or 4 )
+	unsigned long addr;	///< address
+	unsigned long val;	///< value
+	unsigned char isEcu;	///< ecu or command 
+	unsigned int size;	///< size ( 1 , 2 or 4 )
 };
 
 

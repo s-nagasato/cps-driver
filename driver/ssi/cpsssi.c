@@ -7,6 +7,8 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
+ * Ver 1.0.1  04,Apr,2016 Add IOCTL_CPSSSI_STARTBUSYSTATUS I/O Control Command.
+ * Ver.1.0.2  14,Apr,2016 Add 
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -29,7 +31,7 @@
 #include "../../include/cps_ids.h"
 #include "../../include/cps_extfunc.h"
 
-#define DRV_VERSION	"1.0.1"
+#define DRV_VERSION	"1.0.2"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS SenSor Input driver");
@@ -60,6 +62,14 @@ typedef struct __cpsssi_xp_offset_software_data{
 
 static LIST_HEAD(cpsssi_xp_head);
 
+/**
+ @~English
+ @name DebugPrint macro
+ @~Japanese
+ @name デバッグ用表示マクロ
+**/
+/// @{
+
 #if 0
 #define DEBUG_CPSSSI_COMMAND(fmt...)	printk(fmt)
 #else
@@ -78,15 +88,25 @@ static LIST_HEAD(cpsssi_xp_head);
 #define DEBUG_CPSSSI_EEPROM(fmt...)	do { } while (0)
 #endif
 
-static int cpsssi_max_devs;			/*device count */
-static int cpsssi_major = 0;
-static int cpsssi_minor = 0; 
+/// @}
+
+
+static int cpsssi_max_devs;			///< device count
+static int cpsssi_major = 0;		///< major number
+static int cpsssi_minor = 0;		///< minor number
 
 static struct cdev cpsssi_cdev;
 static struct class *cpsssi_class = NULL;
 
 static dev_t cpsssi_dev;
 
+/**
+	@struct cps_ssi_data
+	@~English
+	@brief CPSSSI driver's Data
+	@~Japanese
+	@brief CPSSSI ドライバデータ構造体
+**/
 static const CPSSSI_DEV_DATA cps_ssi_data[] = {
 	{
 		.Name = "CPS-SSI-4P",
@@ -102,7 +122,6 @@ static const CPSSSI_DEV_DATA cps_ssi_data[] = {
 
 #include "cpsssi_devdata.h"
 /**
-	@function __cpsssi_find_sensor_device
 	@param node : device node
 	@return true : product id, false : -1
 **/ 
@@ -122,7 +141,6 @@ int __cpsssi_find_sensor_device( int node )
 }
 
 /**
-	@function cpsssi_read_eeprom
 	@param dev : device number
 	@param cate : device category ( SSI )
 	@param num : number 
@@ -140,7 +158,6 @@ unsigned long cpsssi_read_eeprom( unsigned int dev, unsigned int cate, unsigned 
 }
 
 /**
-	@function cpsssi_write_eeprom
 	@param dev : device number
 	@param cate : device category ( SSI )
 	@param num : number 
@@ -170,7 +187,6 @@ unsigned long cpsssi_write_eeprom(unsigned int dev, unsigned int cate, unsigned 
 }
 
 /**
-	@function cpsssi_clear_eeprom
 	@param dev : device number
 	@return true : 0
 **/ 
@@ -180,7 +196,6 @@ void cpsssi_clear_eeprom( unsigned int dev )
 }
 
 /**
-	@function cpsssi_clear_fpga_extension_reg
 	@param dev : device number
 	@return true : 0
 **/ 
@@ -313,7 +328,7 @@ static long cpsssi_command_4p( unsigned long BaseAddr, unsigned char isReadWrite
 		CPS_SSI_SSI_SET_ADDR_COMMAND_STATUS, val )
 
 
-void cpsssi_command_4p_set_sence_resistance( unsigned long BaseAddr, unsigned long dwVal )
+void cpsssi_command_4p_set_sense_resistance( unsigned long BaseAddr, unsigned long dwVal )
 {
 	unsigned short wVal;
 	unsigned int i; 	
@@ -321,11 +336,11 @@ void cpsssi_command_4p_set_sence_resistance( unsigned long BaseAddr, unsigned lo
 	for( i = 0; i < 4 ; i ++ ){
 		wVal =  ( dwVal & (0xFF << (( 3 - i ) * 8) ) ) >> ( ( 3 - i ) * 8 );
 		cpsssi_command_4p( BaseAddr, CPS_SSI_4P_COMMAND_WRITE,
-			CPS_SSI_SSI_SET_ADDR_COMMAND_CHANNEL_SENCE_RESISTANCE( i ), &wVal );
+			CPS_SSI_SSI_SET_ADDR_COMMAND_CHANNEL_SENSE_RESISTANCE( i ), &wVal );
 	}
 }
 
-void cpsssi_command_4p_get_sence_resistance( unsigned long BaseAddr, unsigned long *dwVal )
+void cpsssi_command_4p_get_sense_resistance( unsigned long BaseAddr, unsigned long *dwVal )
 {
 	unsigned short wVal;
 	unsigned int i; 	
@@ -334,7 +349,7 @@ void cpsssi_command_4p_get_sence_resistance( unsigned long BaseAddr, unsigned lo
 		*dwVal = 0;
 		for( i = 0; i < 4 ; i ++ ){
 			cpsssi_command_4p( BaseAddr, CPS_SSI_4P_COMMAND_READ,
-				CPS_SSI_SSI_SET_ADDR_COMMAND_CHANNEL_SENCE_RESISTANCE( i ), &wVal );
+				CPS_SSI_SSI_SET_ADDR_COMMAND_CHANNEL_SENSE_RESISTANCE( i ), &wVal );
 			*dwVal |= wVal << (( 3 - i ) * 8);
 		}
 	}
@@ -397,9 +412,9 @@ void cpsssi_command_4p_set_start( unsigned long BaseAddr, unsigned int ch )
 			CPS_SSI_SSI_SET_ADDR_COMMAND_STATUS, &wVal );
 
 	// Conversion Busy Wait
-	do{
-		CPSSSI_COMMAND_4P_GET_STATUS( BaseAddr , &wStatus );
-	} while( !(wStatus & 0x40) );
+	//do{
+	//	CPSSSI_COMMAND_4P_GET_STATUS( BaseAddr , &wStatus );
+	//} while( !(wStatus & 0x40) );
 
 }
 
@@ -663,7 +678,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					break;
 
-		case IOCTL_CPSSSI_SET_SENCE_RESISTANCE:
+		case IOCTL_CPSSSI_SET_SENSE_RESISTANCE:
 					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 						return -EFAULT;
 					}
@@ -673,12 +688,12 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}					
 					spin_lock_irqsave(&dev->lock, flags);
 					valdw = ioc.val;
-					cpsssi_command_4p_set_sence_resistance( (unsigned long)dev->baseAddr , valdw );
+					cpsssi_command_4p_set_sense_resistance( (unsigned long)dev->baseAddr , valdw );
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					break;
 
-		case IOCTL_CPSSSI_GET_SENCE_RESISTANCE:
+		case IOCTL_CPSSSI_GET_SENSE_RESISTANCE:
 					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 						return -EFAULT;
 					}
@@ -686,7 +701,7 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
-					cpsssi_command_4p_get_sence_resistance( (unsigned long)dev->baseAddr , &valdw );
+					cpsssi_command_4p_get_sense_resistance( (unsigned long)dev->baseAddr , &valdw );
 					ioc.val = valdw;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -842,11 +857,8 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 }
 
 /**
-	@function cpsssi_open
+	@param inode : node parameter
 	@param filp : struct file pointer
-	@param inode : node parameter 
-	@param count : file data 
-	@param f_pos : Loff_t pointer
 	@return (errno.h)
 	@note This function is called by open user function.
 **/ 

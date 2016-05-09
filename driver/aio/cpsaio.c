@@ -28,7 +28,7 @@
 #include "../../include/cps_ids.h"
 #include "../../include/cps_extfunc.h"
 
-#define DRV_VERSION	"1.0.1"
+#define DRV_VERSION	"1.0.2"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -38,9 +38,16 @@ MODULE_VERSION(DRV_VERSION);
 
 #define CPSAIO_DRIVER_NAME "cpsaio"
 
+/**
+	@struct cps_aio_data
+	@~English
+	@brief CPSAIO driver's File
+	@~Japanese
+	@brief CPSAIO ドライバファイル構造体
+**/
 typedef struct __cpsaio_driver_file{
 	spinlock_t		lock; 				///< lock
-	unsigned ref;						///< reference count 
+	unsigned int ref;						///< reference count 
 
 	unsigned int node;					///< Device Node
 	unsigned long localAddr; 			///< local Address
@@ -48,6 +55,14 @@ typedef struct __cpsaio_driver_file{
 	CPSAIO_DEV_DATA data;				///< Device Data
 
 }CPSAIO_DRV_FILE,*PCPSAIO_DRV_FILE;
+
+/*!
+ @~English
+ @name DebugPrint macro
+ @~Japanese
+ @name デバッグ用表示マクロ
+*/
+/// @{
 
 #if 0
 #define DEBUG_CPSAIO_COMMAND(fmt...)	printk(fmt)
@@ -73,16 +88,24 @@ typedef struct __cpsaio_driver_file{
 #define DEBUG_CPSAIO_READFIFO(fmt...)	do { } while (0)
 #endif
 
+/// @}
 
-static int cpsaio_max_devs;			/*device count */
-static int cpsaio_major = 0;
-static int cpsaio_minor = 0; 
+static int cpsaio_max_devs;			///< device count
+static int cpsaio_major = 0;		///< major number
+static int cpsaio_minor = 0; 		///< minor number
 
 static struct cdev cpsaio_cdev;
 static struct class *cpsaio_class = NULL;
 
 static dev_t cpsaio_dev;
 
+/**
+	@struct cps_aio_data
+	@~English
+	@brief CPSAIO driver's Data
+	@~Japanese
+	@brief CPSAIO ドライバデータ構造体
+**/
 static const CPSAIO_DEV_DATA cps_aio_data[] = {
 	{
 		.Name = "CPS-AI-1608LI",
@@ -153,7 +176,19 @@ static const CPSAIO_DEV_DATA cps_aio_data[] = {
 
 #include "cpsaio_devdata.h"
 
-// DAC161S055 0-FF not enough values.(CPS-AO-1604LI only)
+/**
+  @~English
+	@brief DAC161S055 0-FF not enough values.
+	@param dat : Analog Output Data ( from 0 to 65535 )
+	@return tmpDat : Analog Output Data ( from 256 to 65535 )
+	@warning CPS-AO-1604LI only!
+	@~Japanese
+	@brief 0-65535の範囲を 256-65535に計算する関数。
+	@attention DAC161S055 ばらつきがひどいため ０からFFまで値を使用しない.
+	@param dat : アナログ出力値 ( 0 から 65535まで )
+	@return tmpDat : アナログ出力値 ( 256 から 65535まで )
+	@warning CPS-AO-1604LI専用
+**/
 static unsigned short calc_DAC161S055( unsigned short dat ){
 	double dblDat;
 	unsigned short tmpDat;
@@ -171,9 +206,12 @@ static unsigned short calc_DAC161S055( unsigned short dat ){
 }
 
 /**
-	@function __cpsaio_find_analog_device
+	@~English
 	@param node : device node
 	@return true : product id, false : -1
+	@~Japanese
+	@param node : デバイスノード
+	@return 成功 : プロダクトID , 失敗 : -1
 **/ 
 int __cpsaio_find_analog_device( int node )
 {
@@ -191,10 +229,15 @@ int __cpsaio_find_analog_device( int node )
 }
 
 /**
-	@function cpsaio_read_ai_data
+  @~English
 	@param BaseAddr : base address
 	@param val : value
 	@return true : 0
+	@~Japanese
+	@brief AIのデータを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param val : 値
+	@return 成功 : 0
 **/ 
 static long cpsaio_read_ai_data( unsigned long BaseAddr, unsigned short *val )
 {
@@ -204,10 +247,15 @@ static long cpsaio_read_ai_data( unsigned long BaseAddr, unsigned short *val )
 }
 
 /**
-	@function cpsaio_read_ao_data
+	@~English
 	@param BaseAddr : base address
 	@param val : value
 	@return true : 0
+	@~Japanese
+	@brief AOのデータを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param val : 値
+	@return 成功 : 0
 **/ 
 static long cpsaio_write_ao_data( unsigned long BaseAddr, unsigned short val )
 {
@@ -217,10 +265,15 @@ static long cpsaio_write_ao_data( unsigned long BaseAddr, unsigned short val )
 }
 
 /**
-	@function cpsaio_read_ai_status
+	@~English
 	@param BaseAddr : base address
 	@param wStatus : status
 	@return true : 0
+	@~Japanese
+	@brief AIのステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
 **/ 
 static long cpsaio_read_ai_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
@@ -230,10 +283,15 @@ static long cpsaio_read_ai_status( unsigned long BaseAddr, unsigned short *wStat
 }
 
 /**
-	@function cpsaio_read_ao_status
+	@~English
 	@param BaseAddr : base address
 	@param wStatus : status
 	@return true : 0
+	@~Japanese
+	@brief AOのステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
 **/ 
 static long cpsaio_read_ao_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
@@ -243,10 +301,15 @@ static long cpsaio_read_ao_status( unsigned long BaseAddr, unsigned short *wStat
 }
 
 /**
-	@function cpsaio_read_mem_status
+	@~English
 	@param BaseAddr : base address
 	@param wStatus : status
 	@return true : 0
+	@~Japanese
+	@brief メモリのステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : ステータス
+	@return 成功 : 0
 **/ 
 static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
@@ -257,7 +320,8 @@ static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wSta
 
 
 /**
-	@function cpsaio_command
+	@~English
+	@ AIO Command Function.
 	@param BaseAddr : base address
 	@param isReadWrite : write, read, or call flag
 	@param isEcu	: ecu or command flag
@@ -265,6 +329,15 @@ static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wSta
 	@param wCommand : command address
 	@param vData : data
 	@return true : 0
+	@~Japanese
+	@brief AIO コマンド関数
+	@param BaseAddr : ベースアドレス
+	@param isReadWrite : 書き込みか読み込みか呼び出し、いずれかのフラグ
+	@param isEcu	: ECUか　COMMANDかのフラグ
+	@param size : サイズ ( 1 か 2 か 4 )
+	@param wCommand : コマンドアドレス
+	@param vData : データ
+	@return 成功 : 0
 **/ 
 static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , unsigned int isEcu, unsigned int size, unsigned short wCommand , void *vData )
 {
@@ -339,6 +412,18 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 	return 0;
 }
 
+/*!
+ @name CPSAIO-COMMAND
+*/
+/// @{
+
+/*!
+ @~English
+ @name ECU COMMAND
+ @~Japanese
+ @name ECUコマンド
+*/
+/// @{
 #define CPSAIO_COMMAND_ECU_INIT( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_ECU, 0, CPS_AIO_COMMAND_ECU_INIT, NULL )
 #define CPSAIO_COMMAND_ECU_SETINPUTSIGNAL( addr, data ) \
@@ -353,8 +438,18 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 	cpsaio_command( addr, CPS_AIO_COMMAND_READ, CPS_AIO_ADDRESS_MODE_ECU, 2, CPS_AIO_COMMAND_ECU_AO_INTERRUPT_FLAG, data )
 #define CPSAIO_COMMAND_ECU_AO_SET_INTERRUPT_FLAG( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_ECU, 2, CPS_AIO_COMMAND_ECU_AO_INTERRUPT_FLAG, data )
-
-
+#define CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( addr, data ) \
+	cpsaio_command( addr, CPS_AIO_COMMAND_READ, CPS_AIO_ADDRESS_MODE_ECU, 2, CPS_AIO_COMMAND_ECU_MEM_INTERRUPT_FLAG, data )
+#define CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG( addr, data ) \
+	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_ECU, 2, CPS_AIO_COMMAND_ECU_MEM_INTERRUPT_FLAG, data )
+/// @}
+/*!
+ @~English
+ @name AI COMMAND
+ @~Japanese
+ @name AI用コマンド
+*/
+/// @{
 #define CPSAIO_COMMAND_AI_SINGLEMULTI( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_COMMAND, 2, CPS_AIO_COMMAND_AI_SET_EXCHANGE, data )
 #define CPSAIO_COMMAND_AI_SETCHANNEL( addr, data ) \
@@ -374,14 +469,53 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 #define CPSAIO_COMMAND_AI_GET_CALIBRATION( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_READ, CPS_AIO_ADDRESS_MODE_COMMAND, 4, CPS_AIO_COMMAND_AI_SET_CALIBRATION_TERMS, data )
 
+/// @}
+/*!
+ @~English
+ @name AO COMMAND
+ @~Japanese
+ @name AO用コマンド
+*/
+/// @{
+
+/*!
+	@~English
+	@brief Analog output set one channel or many channel.
+	@~Japanese
+	@brief AO 単数チャネル取得(Signle)か 複数チャネル取得(Multi)の設定
+*/
 #define CPSAIO_COMMAND_AO_SINGLEMULTI( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_COMMAND, 2, CPS_AIO_COMMAND_AO_SET_EXCHANGE, data )
+/*!
+	@~English
+	@brief Analog output set channel number.
+	@~Japanese
+	@brief AO チャネル数の設定
+*/
 #define CPSAIO_COMMAND_AO_SETCHANNEL( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_COMMAND, 2, CPS_AIO_COMMAND_AO_SET_CHANNELS, data )
+/*!
+	@~English
+	@brief Analog output initialize.
+	@~Japanese
+	@brief AO 初期化
+*/
 #define CPSAIO_COMMAND_AO_INIT( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_COMMAND, 0, CPS_AIO_COMMAND_AO_INIT, NULL )
+/*!
+	@~English
+	@brief Analog output open.
+	@~Japanese
+	@brief AO ゲートオープン
+*/
 #define CPSAIO_COMMAND_AO_OPEN( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_COMMAND, 0, CPS_AIO_COMMAND_AO_GATE_OPEN, NULL )
+/*!
+	@~English
+	@brief Analog output stop.
+	@~Japanese
+	@brief AO 強制停止
+*/
 #define CPSAIO_COMMAND_AO_STOP( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_COMMAND, 0, CPS_AIO_COMMAND_AO_FORCE_STOP, NULL )
 #define CPSAIO_COMMAND_AO_SETCLOCK( addr, data ) \
@@ -393,17 +527,40 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 #define CPSAIO_COMMAND_AO_GET_CALIBRATION( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_READ, CPS_AIO_ADDRESS_MODE_COMMAND, 4, CPS_AIO_COMMAND_AO_SET_CALIBRATION_TERMS, data )
 
+/// @}
+/*!
+ @~English
+ @name Memory COMMAND
+ @~Japanese
+ @name メモリ用コマンド
+*/
+/// @{
 
+/*!
+	@~English
+	@brief Memory Init Command
+	@~Japanese
+	@brief メモリ初期化コマンド
+*/
 #define CPSAIO_COMMAND_MEM_INIT( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_COMMAND, 0, CPS_AIO_COMMAND_MEM_INIT, NULL )
+/// @}
+/// @}
 
 /**
-	@function cpsaio_read_eeprom
+	@brief cpsaio_read_eeprom
 	@param dev : device number
 	@param cate : device category ( AI or AO )
 	@param num : number 
 	@param val : value
-	@return true : 0
+	@return Success : 0, Failed : 1
+	@~Japanese
+	@brief EEPROMの読み出し
+	@param dev : デバイス番号(  1-31 )
+	@param cate : カテゴリ番号 ( AI, AO など )
+	@param num : ページ番号 ( 0 から 4 )
+	@param val : 値
+	@return 成功 : 0 , 失敗 : 1
 **/ 
 unsigned long cpsaio_read_eeprom( unsigned int dev, unsigned int cate, unsigned int num, unsigned short *val )
 {
@@ -416,12 +573,20 @@ unsigned long cpsaio_read_eeprom( unsigned int dev, unsigned int cate, unsigned 
 }
 
 /**
-	@function cpsaio_write_eeprom
+	@~English
+	@brief cpsaio_write_eeprom
 	@param dev : device number
 	@param cate : device category ( AI or AO )
 	@param num : number 
 	@param val : value
-	@return true : 0
+	@return Success : 0 , Failed : 1
+	@~Japanese
+	@brief EEPROMの書き込み
+	@param dev : デバイス番号(  1-31 )
+	@param cate : カテゴリ番号 ( AI, AO など )
+	@param num : ページ番号 ( 0 から 4 )
+	@param val : 値
+	@return 成功 : 0 , 失敗 : 1
 **/ 
 unsigned long cpsaio_write_eeprom(unsigned int dev, unsigned int cate, unsigned int num, unsigned short val )
 {
@@ -446,9 +611,12 @@ unsigned long cpsaio_write_eeprom(unsigned int dev, unsigned int cate, unsigned 
 }
 
 /**
-	@function cpsaio_clear_eeprom
+	@~English
+	@brief cpsaio_clear_eeprom
 	@param dev : device number
-	@return true : 0
+	@~Japanese
+	@brief EEPROMのクリア
+	@param dev : デバイス番号(  1-31 )
 **/ 
 void cpsaio_clear_eeprom( unsigned int dev )
 {
@@ -456,11 +624,16 @@ void cpsaio_clear_eeprom( unsigned int dev )
 }
 
 /**
-	@function cpsaio_clear_fpga_extension_reg
+	@~English
+	@brief cpsaio_clear_fpga_extension_reg
 	@param dev : device number
 	@param cate : category number
 	@param num : page number ( 0 to 4 )
-	@return true : 0
+	@~Japanese
+	@brief FPGA拡張レジスタのクリア
+	@param dev : デバイス番号(  1-31 )
+	@param cate : カテゴリ番号 ( AI, AO など )
+	@param num : ページ番号 ( 0 から 4 )
 **/ 
 void cpsaio_clear_fpga_extension_reg(unsigned int dev, unsigned int cate, unsigned int num )
 {
@@ -481,10 +654,16 @@ static const int AM335X_IRQ_NMI=7;
 
 
 /**
-	@function cpsaio_isr_func
+	@~English
+	@brief cpsaio_isr_func
 	@param irq : interrupt 
 	@param dev_instance : device instance
 	@return intreturn ( IRQ_HANDLED or IRQ_NONE )
+	@~Japanese
+	@brief cpsaio 割り込み処理
+	@param irq : IRQ番号
+	@param dev_instance : デバイス・インスタンス
+	@return IRQ_HANDLED か, IRQ_NONE
 **/ 
 irqreturn_t cpsaio_isr_func(int irq, void *dev_instance){
 
@@ -511,12 +690,18 @@ irqreturn_t cpsaio_isr_func(int irq, void *dev_instance){
 /***** file operation functions *******************************/
 
 /**
-	@function cpsaio_ioctl_ecu
+	@~English
+	@brief cpsaio_ioctl_ecu (cpsaio_ioctl sub function.)
 	@param dev : CPSAIO_DRV_FILE pointer
 	@param cmd : iocontrol command
 	@param arg : argument
-	@return long (see errno.h)
-	@note cpsaio_ioctl sub function.
+	@return Success 0, Failed:otherwise 0. (see errno.h)	@return long (see errno.h)
+	@~Japanese
+	@brief ECU用 I/Oコントロール
+	@param dev : CPSAIO_DRV_FILE構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
 **/ 
 long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 {
@@ -585,12 +770,18 @@ long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg 
 
 
 /**
-	@function cpsaio_ioctl_ai
+	@~English
+	@brief cpsaio_ioctl_ai　(cpsaio_ioctl sub function.)
 	@param dev : CPSAIO_DRV_FILE pointer
 	@param cmd : iocontrol command
 	@param arg : argument
-	@return long (see errno.h)
-	@note cpsaio_ioctl sub function.
+	@return Success 0, Failed:otherwise 0. (see errno.h)	@return long (see errno.h)
+	@~Japanese
+	@brief AI用 I/Oコントロール
+	@param dev : CPSAIO_DRV_FILE構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
 **/ 
 long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 {
@@ -762,12 +953,19 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 }
 
 /**
-	@function cpsaio_ioctl_ao
+	@~English
+	@brief ao ioctl function. (cpsaio_ioctl sub function.)
 	@param dev : CPSAIO_DRV_FILE pointer
 	@param cmd : iocontrol command
 	@param arg : argument
-	@return long (see errno.h)
-	@note cpsaio_ioctl sub function.
+	@return Success 0, Failed:otherwise 0. (see errno.h)
+	@~Japanese
+	@brief AO用 I/Oコントロール
+	@param dev : CPSAIO_DRV_FILE構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
+
 **/ 
 long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 {
@@ -922,11 +1120,18 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 }
 
 /**
-	@function cpsaio_ioctl
+	@~English
+	@brief cpsaio_ioctl
 	@param filp : struct file pointer
 	@param cmd : iocontrol command
 	@param arg : argument
-	@return long (see errno.h)
+	@return Success 0, Failed:otherwise 0. (see errno.h)
+	@~Japanese
+	@brief cpsaio_ioctl
+	@param filp : file構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
 **/ 
 static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg )
 {
@@ -1258,13 +1463,20 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 
 /**
-	@function cpsaio_get_sampling_data_ai
+	@~English
+	@brief This function is called by read user function.
 	@param filp : struct file pointer
 	@param buf : buffer (user)
 	@param count : size count
-	@param f_pos : Loff_t pointer
-	@return read_finished size (see errno.h)
-	@note This function is called by read user function.
+	@param f_pos : struct Loff_t pointer
+	@return Success: read_finished size, Failed : Less then 0. (see errno.h)
+	@~Japanese
+	@brief この関数は read関数から呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param buf : ユーザバッファ
+	@param count : サイズカウント
+	@param f_pos : Loff_t構造体ポインタ
+	@return 成功: 読み込み完了データサイズ, 失敗 : 0未満. ( errno.h参照)
 **/ 
 static ssize_t cpsaio_get_sampling_data_ai(struct file *filp, char __user *buf, size_t count, loff_t *f_pos )
 {
@@ -1286,8 +1498,16 @@ static ssize_t cpsaio_get_sampling_data_ai(struct file *filp, char __user *buf, 
 				cpsaio_read_mem_status( (unsigned long) dev->baseAddr, &wStatus );
 				if( timout > 1000000 ){
 					DEBUG_CPSAIO_READFIFO(KERN_INFO"cpsaio: mem timeout (status mem:%x", wStatus);
+
 					cpsaio_read_ai_status((unsigned long) dev->baseAddr, &wStatus );
-					DEBUG_CPSAIO_READFIFO(KERN_INFO",status ai:%x)\n", wStatus);
+					DEBUG_CPSAIO_READFIFO(KERN_INFO",status ai:%x", wStatus);
+
+					CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wStatus );
+					DEBUG_CPSAIO_READFIFO(KERN_INFO",flag mem:%x", wStatus);
+
+					CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wStatus );
+					DEBUG_CPSAIO_READFIFO(KERN_INFO",flag ai:%x", wStatus);
+					
 					retval = -EFAULT;
 					goto out;
 				}else	timout++;
@@ -1313,13 +1533,20 @@ out:
 }
 
 /**
-	@function cpsaio_get_sampling_data_ao
+	@~English
+	@brief This function is called by write user function.
 	@param filp : struct file pointer
 	@param buf : buffer (user)
 	@param count : size count
-	@param f_pos : Loff_t pointer
-	@return read_finished size (see errno.h)
-	@note This function is called by write user function.
+	@param f_pos : struct Loff_t pointer
+	@return Success :read_finished size Failed : Less then 0. (see errno.h)
+	@~Japanese
+	@brief この関数は WRITE関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param buf : ユーザバッファ
+	@param count : サイズカウント
+	@param f_pos : Loff_t構造体ポインタ
+	@return 成功：読み込み完了したサイズ 　失敗：0未満　 ( errno.hを参照 )
 **/ 
 static ssize_t cpsaio_set_sampling_data_ao(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos )
 {
@@ -1349,13 +1576,17 @@ out:
 }
 
 /**
-	@function cpsaio_open
+	@~English
+	@brief This function is called by open user function.
 	@param filp : struct file pointer
 	@param inode : node parameter 
-	@param count : file data 
-	@param f_pos : Loff_t pointer
-	@return (errno.h)
-	@note This function is called by open user function.
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はOPEN関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param inode : ノード構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外
+	@note filp->private_dataは プロセスに１個, inode->i_privateは nodeに1個
 **/ 
 static int cpsaio_open(struct inode *inode, struct file *filp )
 {
@@ -1433,6 +1664,19 @@ NOT_IOMEM_ALLOCATION:
 	return iRet;
 }
 
+/**
+	@~English
+	@brief This function is called by close user function.
+	@param filp : struct file pointer
+	@param inode : node parameter
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はCLOSE関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param inode : ノード構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外
+	@note filp->private_dataは プロセスに１個, inode->i_privateは nodeに1個
+**/
 static int cpsaio_close(struct inode * inode, struct file *filp ){
 
 	PCPSAIO_DRV_FILE dev;
@@ -1460,16 +1704,27 @@ static int cpsaio_close(struct inode * inode, struct file *filp ){
 }
 
 
-
+/**
+	@struct cpsaio_fops
+	@brief CPSAIO file operations
+**/
 static struct file_operations cpsaio_fops = {
-		.owner = THIS_MODULE,
-		.open = cpsaio_open,
-		.release = cpsaio_close,
-		.read = cpsaio_get_sampling_data_ai,
-		.write = cpsaio_set_sampling_data_ao,
-		.unlocked_ioctl = cpsaio_ioctl,
+		.owner = THIS_MODULE,	///< owner's name
+		.open = cpsaio_open,	///< open
+		.release = cpsaio_close,	///< close
+		.read = cpsaio_get_sampling_data_ai,	///< write
+		.write = cpsaio_set_sampling_data_ao,	///< read
+		.unlocked_ioctl = cpsaio_ioctl,	/// I/O Control
 };
 
+/**
+	@~English
+	@brief cpsaio init function.
+	@return Success: 0, Failed: otherwise 0
+	@~Japanese
+	@brief cpsaio 初期化関数.
+	@return 成功: 0, 失敗: 0以外
+**/
 static int cpsaio_init(void)
 {
 
@@ -1531,6 +1786,12 @@ static int cpsaio_init(void)
 	return 0;
 }
 
+/**
+	@~English
+	@brief cpsaio exit function.
+	@~Japanese
+	@brief cpsaio 終了関数.
+**/
 static void cpsaio_exit(void)
 {
 

@@ -29,7 +29,7 @@
 #include "../../include/cps_ids.h"
 #include "../../include/cps_extfunc.h"
 
-#define DRV_VERSION	"0.9.5"
+#define DRV_VERSION	"0.9.6"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Digital I/O driver");
@@ -457,10 +457,8 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 /**
 	@function cpsdio_open
+	@param inode : node parameter
 	@param filp : struct file pointer
-	@param inode : node parameter 
-	@param count : file data 
-	@param f_pos : Loff_t pointer
 	@return (errno.h)
 	@note This function is called by open user function.
 **/
@@ -575,6 +573,14 @@ static struct file_operations cpsdio_fops = {
 		.unlocked_ioctl = cpsdio_ioctl,
 };
 
+/**
+	@~English
+	@brief cpsdio init function.
+	@return Success: 0, Failed: otherwise 0
+	@~Japanese
+	@brief cpsdio 初期化関数.
+	@return 成功: 0, 失敗: 0以外
+**/
 static int cpsdio_init(void)
 {
 
@@ -635,6 +641,12 @@ static int cpsdio_init(void)
 	return 0;
 }
 
+/**
+	@~English
+	@brief cpsdio exit function.
+	@~Japanese
+	@brief cpsdio 終了関数.
+**/
 static void cpsdio_exit(void)
 {
 

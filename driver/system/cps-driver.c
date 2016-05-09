@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.0.6
+ * Version 1.0.7
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -33,11 +33,12 @@
 #include <linux/interrupt.h>
 #include <asm/io.h>
 #include <linux/device.h>
-#include <asm/delay.h>
+//#include <asm/delay.h> // Ver.1.0.7
+#include <linux/delay.h> // Ver.1.0.7
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.0.5"
+#define DRV_VERSION	"1.0.7"
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("CONTEC CONPROSYS BASE Driver");
@@ -47,6 +48,14 @@ MODULE_VERSION(DRV_VERSION);
 #include "../../include/cps.h"
 #include "../../include/cps_ids.h"
 #include "../../include/cps_common_io.h"
+
+/**
+ @~English
+ @name DebugPrint macro
+ @~Japanese
+ @name デバッグ用表示マクロ
+*/
+/// @{
 
 #if 0
 #define DEBUG_INITMEMORY(fmt...)	printk(fmt)
@@ -78,29 +87,46 @@ MODULE_VERSION(DRV_VERSION);
 #define DEBUG_EEPROM_CONTROL(fmt...)        do { } while (0)
 #endif
 
-static unsigned char __iomem *map_baseaddr ;
-static unsigned char __iomem *map_devbaseaddr[CPS_DEVICE_MAX_NUM];
+/// @}
+
+static unsigned char __iomem *map_baseaddr ;			///< I/O Memory Mapped Base Address (Controller)
+static unsigned char __iomem *map_devbaseaddr[CPS_DEVICE_MAX_NUM];	///< I/O Memory Mapped Base Address (Devices)
 
 // 2016.02.17 halt / shutdown button timer counter
-static struct timer_list mcs341_timer;	// timer
-static unsigned int reset_count = 0;	// reset_counter
+static struct timer_list mcs341_timer;	///< timer
+static unsigned int reset_count = 0;	///< reset_counter
 
 // 2016.02.19 GPIO-87 Push/Pull Test Mode 
-static unsigned int reset_button_check_mode = 0;// gpio-87 test mode ( 1...Enable, 0... Disable )
+static unsigned int reset_button_check_mode = 0;///< gpio-87 test mode ( 1...Enable, 0... Disable )
 module_param(reset_button_check_mode, uint, 0644 );
 
+// 2016.04.14  and CPS-MC341-DS2 and CPS-MC341Q-DS1 mode add
+static unsigned int child_unit = CPS_CHILD_UNIT_NONE;	//CPS-MC341-DS1
+module_param(child_unit, uint, 0644 );
 
-static unsigned char deviceNumber;
+static unsigned char deviceNumber;		///< device number
 
 
-static unsigned char mcs341_deviceInterrupt[6];
+static unsigned char mcs341_deviceInterrupt[6];	///< device interrupt flag
 
-static const int AM335X_IRQ_NMI=7;
+static const int AM335X_IRQ_NMI=7;	///< IRQ NUMBER
 
 void *am335x_irq_dev_id = (void *)&AM335X_IRQ_NMI;
 
 static int CompleteDevIrqs ;
 
+/**
+	@~English
+	@brief am335x_nmi_func
+	@param irq : interrupt
+	@param dev_instance : device instance
+	@return intreturn ( IRQ_HANDLED or IRQ_NONE )
+	@~Japanese
+	@brief am335x NMI 割り込み処理
+	@param irq : IRQ番号
+	@param dev_instance : デバイス・インスタンス
+	@return IRQ_HANDLED か, IRQ_NONE
+**/
 irqreturn_t am335x_nmi_isr(int irq, void *dev_instance){
 
 	int cnt = 0;
@@ -133,6 +159,16 @@ irqreturn_t am335x_nmi_isr(int irq, void *dev_instance){
 }
 
 // 2016.02.17 halt / shutdown button timer function
+/**
+	@~English
+	@brief MCS341 Controller's timer function
+	@note 17, Feb, 2016 : halt / shutdown button timer function
+	@param arg : argument
+	@~Japanese
+	@brief MCS341 コントローラ用タイマー関数
+	@note 2016.02.17 : halt / shutdown ボタン処理用タイマー関数として実装
+	@param arg : 引数
+**/
 void mcs341_controller_timer_function(unsigned long arg)
 {
 
@@ -154,29 +190,91 @@ void mcs341_controller_timer_function(unsigned long arg)
 	mod_timer(tick, jiffies + CPS_CONTROLLER_MCS341_TICK );
 }
 
-
+/**
+	@~English
+	@brief MCS341 Controller's micro second wait time funciton
+	@note 14, Apr, 2016 : Change :  If the function more than 1 milisecond wait, it call msleep_interruptible function.
+	@param usec : times( micro second order )
+	@~Japanese
+	@brief MCS341 マイクロ秒ウェイト関数
+	@note 2016.04.22 : 1ミリ秒未満の場合, udelay それ以上の場合は msleep_interruptibleに変更
+	@param usec : マイクロ秒
+**/
 static void contec_cps_micro_delay_sleep(unsigned long usec ){
+/*
 	while( usec > 0 ){
 		udelay( 1 );
 		usec--;
 	}
+*/
+	if( (usec % 1000) > 0){
+		udelay( usec % 1000 );
+	}
+
+	if( (usec / 1000) > 0 ){
+		msleep_interruptible( usec / 1000 );
+	}
+
 }
 EXPORT_SYMBOL_GPL(contec_cps_micro_delay_sleep);
 
+/**
+	@~English
+	@brief MCS341 Controller's address write data.
+	@param addr : Address
+	@param valb : value
+	@~Japanese
+	@brief MCS341 Controllerのアドレスにデータを1バイト分書き出す関数
+	@param addr : アドレス
+	@param valb : 値
+**/
 static void contec_mcs341_outb(unsigned int addr, unsigned char valb )
 {
 	DEBUG_ADDR_VAL_OUT(KERN_INFO " cps-system: Offset Address : %x Value %x \n", addr, valb );
 	cps_common_outb( (unsigned long)(map_baseaddr + addr), valb );
 }
 
+/**
+	@~English
+	@brief MCS341 Controller's address read data.
+	@param addr : Address
+	@param valb : value ( unsigned char )
+	@~Japanese
+	@brief MCS341 Controllerのアドレスにデータを1バイト分読み出す関数
+	@param addr : アドレス
+	@param valb : 値
+**/
 static void contec_mcs341_inpb(unsigned int addr, unsigned char *valb )
 {
 	cps_common_inpb( (unsigned long)(map_baseaddr + addr), valb );
 	DEBUG_ADDR_VAL_IN(KERN_INFO " cps-system: Offset Address : %x Value %x\n", addr, *valb );
 }
 
-/***** SET Paramater's ***************/
+/**
+ @~English
+ @name The Controller function
+ @~Japanese
+ @name コントローラ用関数
+*/
+/// @{
 
+//------- SET Paramater's -----------------------------------------
+
+/**
+	@~English
+	@brief MCS341 Controller's sets pin with child board.(optional)
+	@param Pin3g3 : Pin Name 3g-3
+	@param Pin3g4 : Pin Name 3g-4
+	@param Pincts : Pin Name Cts
+	@param Pinrts : Pin Name Rts
+	@~Japanese
+	@brief MCS341 Controllerの子基板のピンを設定する関数
+	@param Pin3g3 : 3g-3ピン
+	@param Pin3g4 : 3g-4ピン
+	@param Pincts : CTSピン
+	@param Pinrts : RTSピン
+	@warning 子基板のピン設定を間違えると子基板が故障する場合があります。
+**/
 static unsigned char contec_mcs341_controller_setPinMode(int Pin3g3, int Pin3g4, int Pincts, int Pinrts  ){
 	unsigned char valb = 
 		CPS_MCS341_SETPINMODE_3G3(Pin3g3) | 
@@ -190,6 +288,16 @@ static unsigned char contec_mcs341_controller_setPinMode(int Pin3g3, int Pin3g4,
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_setPinMode);
 
+/**
+	@~English
+	@brief MCS341 Controller's Interrupt.
+	@param GroupNum  : Interrupt Groups Number ( from 0 to 4 )
+	@param isEnable : 0...disable , 1...Enable
+	@~Japanese
+	@brief MCS341 Controllerの割り込みを設定する関数
+	@param GroupNum  : 割り込みグループ番号 ( 0 から 4まで )
+	@param isEnable : 0...不可能 ,　1...可能
+**/
 static unsigned char contec_mcs341_controller_setInterrupt( int GroupNum , int isEnable ){
 
 	unsigned char valb;
@@ -205,6 +313,16 @@ static unsigned char contec_mcs341_controller_setInterrupt( int GroupNum , int i
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_setInterrupt);
 
+/**
+	@~English
+	@brief MCS341 Controller's Digital I/O Direction.
+	@param dioNum  : Digital I/O Number ( from 0 to 3 )
+	@param isDir : 0...Input , 1...Output
+	@~Japanese
+	@brief MCS341 Controllerのデジタル入出力の方向を設定する関数
+	@param dioNum  : デジタルビット番号( 0 から 3まで )
+	@param isDir : 0...入力,　1...出力
+**/
 static unsigned char contec_mcs341_controller_setDioDirection( int dioNum , int isDir ){
 
 	unsigned char valb;
@@ -221,7 +339,14 @@ static unsigned char contec_mcs341_controller_setDioDirection( int dioNum , int 
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_setDioDirection);
 
-
+/**
+	@~English
+	@brief MCS341 Controller's Digital I/O Filter.
+	@param FilterNum  : Digital Filter Number
+	@~Japanese
+	@brief MCS341 Controllerのデジタル入出力フィルタを設定する関数
+	@param FilterNum  : デジタルフィルタ番号
+**/
 static unsigned char contec_mcs341_controller_setDioFilter( int FilterNum ){
 
 	unsigned char valb;
@@ -238,6 +363,16 @@ static unsigned char contec_mcs341_controller_setDioFilter( int FilterNum ){
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_setDioFilter);
 
+/**
+	@~English
+	@brief MCS341 Controller's Digital Output Values.
+	@param dioNum  : Digital I/O Number ( from 0 to 3 )
+	@param value : values ( from 0 to 15 )
+	@~Japanese
+	@brief MCS341 Controllerのデジタル出力の値を設定する関数
+	@param dioNum  : デジタルビット番号( 0 から 3まで )
+	@param value  : 出力値 ( 0から 15まで )
+**/
 static unsigned char contec_mcs341_controller_setDoValue( int dioNum, int value ){
 
 	unsigned char valb;
@@ -252,7 +387,14 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_setDoValue);
 
 
 /***** GET Paramater's ***************/
-
+/**
+	@~English
+	@brief MCS341 Controller's get Product Version.
+	@return product version
+	@~Japanese
+	@brief MCS341 Controllerの製品バージョンを取得する関数
+	@return 製品バージョン
+**/
 static unsigned char contec_mcs341_controller_getProductVersion(void){
 	unsigned char valb = 0;
 
@@ -261,7 +403,14 @@ static unsigned char contec_mcs341_controller_getProductVersion(void){
 	return CPS_MCS341_PRODUCT_VERSION(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getProductVersion);
-
+/**
+	@~English
+	@brief MCS341 Controller's get Product Types.
+	@return product type
+	@~Japanese
+	@brief MCS341 Controllerの製品タイプを取得する関数
+	@return 製品タイプ
+**/
 static unsigned char contec_mcs341_controller_getProductType(void){
 	unsigned char valb = 0;
 
@@ -270,7 +419,14 @@ static unsigned char contec_mcs341_controller_getProductType(void){
 	return CPS_MCS341_PRODUCT_TYPE(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getProductType);
-
+/**
+	@~English
+	@brief MCS341 Controller's get FPGA Version.
+	@return product type
+	@~Japanese
+	@brief MCS341 ControllerのFPGAバージョンを取得する関数
+	@return FPGAバージョン
+**/
 static unsigned short contec_mcs341_controller_getFpgaVersion(void){
 	unsigned char valb = 0;
 
@@ -279,7 +435,14 @@ static unsigned short contec_mcs341_controller_getFpgaVersion(void){
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getFpgaVersion);
 
-
+/**
+	@~English
+	@brief MCS341 Controller's get Unit ID.
+	@return unit ID ( 0 to 15 )
+	@~Japanese
+	@brief MCS341 ControllerのUnit IDを取得する関数
+	@return ユニット ID ( 0 to 15 )
+**/
 static unsigned char contec_mcs341_controller_getUnitId(void){
 	unsigned char valb = 0;
 
@@ -288,7 +451,14 @@ static unsigned char contec_mcs341_controller_getUnitId(void){
 	return CPS_MCS341_ROTARYSW_UNITID(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getUnitId);
-
+/**
+	@~English
+	@brief MCS341 Controller's get Group ID.
+	@return Group ID ( 0 to 15 )
+	@~Japanese
+	@brief MCS341 ControllerのGroup IDを取得する関数
+	@return グループ ID ( 0 to 15 )
+**/
 static unsigned char contec_mcs341_controller_getGroupId(void){
 	unsigned char valb = 0;
 
@@ -297,7 +467,14 @@ static unsigned char contec_mcs341_controller_getGroupId(void){
 	return CPS_MCS341_ROTARYSW_GROUPID(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getGroupId);
-
+/**
+	@~English
+	@brief The function get Connecting Number in MCS341 Controller.
+	@return Device Number
+	@~Japanese
+	@brief MCS341 Controllerに接続された数を取得する関数。
+	@return 接続したデバイス数
+**/
 static unsigned char contec_mcs341_controller_getDeviceNum(void){
 	unsigned char valb = 0;
 
@@ -306,7 +483,16 @@ static unsigned char contec_mcs341_controller_getDeviceNum(void){
 	return CPS_MCS341_DEVICENUM_VALUE(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDeviceNum);
-
+/**
+	@~English
+	@brief MCS341 Controller's get Interrupt Enable/Disable of Group.
+	@param GroupNum  : Interrupt Groups Number ( from 0 to 4 )
+	@return interrupt of group ( 0 to 255 )
+	@~Japanese
+	@brief MCS341 Controllerの割り込みを取得する関数
+	@param GroupNum  : 割り込みグループ番号 ( 0 から 4まで )
+	@return グループ内の割り込み有効/無効(1グループ 8台分)
+**/
 static unsigned char contec_mcs341_controller_getInterrupt( int GroupNum ){
 
 	unsigned char valb;
@@ -318,7 +504,16 @@ static unsigned char contec_mcs341_controller_getInterrupt( int GroupNum ){
 	return CPS_MCS341_INTERRUPT_GROUP_GET(GroupNum, valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getInterrupt);
-
+/**
+	@~English
+	@brief MCS341 Controller's Digital Echo Output Values.
+	@param dioNum  : Digital I/O Number ( from 0 to 3 )
+	@return echo output values ( from 0 to 15 )
+	@~Japanese
+	@brief MCS341 Controllerのデジタル出力のエコーバックの値を取得する関数
+	@param dioNum  : デジタルビット番号( 0 から 3まで )
+	@return エコーバック出力値 ( 0から 15まで )
+**/
 static unsigned char contec_mcs341_controller_getDoEchoValue( int dioNum ){
 
 	unsigned char valb = 0;
@@ -329,7 +524,16 @@ static unsigned char contec_mcs341_controller_getDoEchoValue( int dioNum ){
 	return CPS_MCS341_DIO_DOECHOVALUE_GET(dioNum, valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDoEchoValue);
-
+/**
+	@~English
+	@brief MCS341 Controller's Digital Input Values.
+	@param dioNum  : Digital I/O Number ( from 0 to 3 )
+	@return input values ( from 0 to 15 )
+	@~Japanese
+	@brief MCS341 Controllerのデジタル入力の値を取得する関数
+	@param dioNum  : デジタルビット番号( 0 から 3まで )
+	@return  : 入力値 ( 0から 15まで )
+**/
 static unsigned char contec_mcs341_controller_getDiValue( int dioNum ){
 
 	unsigned char valb = 0;
@@ -341,9 +545,14 @@ static unsigned char contec_mcs341_controller_getDiValue( int dioNum ){
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDiValue);
 
-/*
-	@note :: Id-Sel of MCS341 complete sub routine.
-*/ 
+/**
+	@~English
+	@brief This function is completed by MCS341 Device ID-Sel.
+	@note This function is sub-routine of Initialize.
+	@~Japanese
+	@brief MCS341 ControllerのID-SELを完了させるための関数。
+	@note 初期化を完了させるためのサブルーチン
+**/
 static void contec_mcs341_device_idsel_complete( void ){
 	int cnt;
 	int nInterrupt;
@@ -369,9 +578,14 @@ static void contec_mcs341_device_idsel_complete( void ){
 	}
 }
 
-/*
-	@note :: cps-driver CPS-Devices Initialize. Success 0 , Failed not 0.
-*/ 
+/**
+	@~English
+	@brief This function is CPS-Stack Devices Initialize.
+	@return Success 0 , Failed not 0.
+	@~Japanese
+	@brief MCS341 Controllerのスタックデバイスを初期化する関数。
+	@return 成功 0, 失敗 0以外.
+**/
 static unsigned char contec_mcs341_controller_cpsDevicesInit(void){
 	unsigned char valb = 0;
 	unsigned int timeout = 0;
@@ -423,6 +637,16 @@ static unsigned char contec_mcs341_controller_cpsDevicesInit(void){
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsDevicesInit);
 
+/**
+	@~English
+	@brief This function is CPS-Child Devices Initialize.
+	@param childType: Child Board Type
+	@return Success 0 , Failed not 0.
+	@~Japanese
+	@brief MCS341 Controllerの子基板を初期化する関数。
+	@param childType: 子基板番号
+	@return 成功 0, 失敗 0以外.
+**/
 static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int childType)
 {
 	
@@ -474,11 +698,28 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsChildUnitInit);
 
-/*
+/// @}
+
+/**
+ @~English
+ @name The Stack Device function
+ @~Japanese
+ @name スタックデバイス用関数
+*/
+/// @{
+
+/**
+	@~English
+	@brief This function is find CPS-Device Device's Category.
 	@param startIndex : Start Index ( >= 1 )
 	@param CategoryNum : Product Category Number
-	@note :: Success : 1 , Fail : 0
-*/  
+	@return Success : 1 , Fail : 0
+	@~Japanese
+	@brief MCS341 スタックデバイスのカテゴリを探す関数。
+	@param startIndex : インデックス番号 ( >= 1 )
+	@param CategoryNum : 製品カテゴリ番号
+	@return 成功 1, 失敗 0
+**/
 static unsigned char contec_mcs341_device_FindCategory( int *startIndex,int CategoryNum ){
 
 	int cnt;
@@ -499,11 +740,18 @@ static unsigned char contec_mcs341_device_FindCategory( int *startIndex,int Cate
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_FindCategory);
 
-/*
-	@param startIndex : Start Index ( >= 1 )
+/**
+	@~English
+	@brief This function is get CPS-Device Device's Category.
+	@param targetDevNum : target Device Number (  1 <= targetDevNum <= MAX )
 	@param CategoryNum : Product Category Number
-	@note :: Success : 1 , Fail : 0
-*/  
+	@return Success : 1 , Fail : 0
+	@~Japanese
+	@brief MCS341 スタックデバイスのカテゴリか判断する関数。
+	@param targetDevNum : デバイス番号 (  1 <= targetDevNum <= MAX )
+	@param CategoryNum : 製品カテゴリ番号
+	@return 成功 1, 失敗 0
+**/
 static unsigned char contec_mcs341_device_IsCategory( int targetDevNum ,int CategoryNum ){
 
 	unsigned char valb;
@@ -518,11 +766,18 @@ static unsigned char contec_mcs341_device_IsCategory( int targetDevNum ,int Cate
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_IsCategory);
 
-/*
+/**
+	@~English
+	@brief This function is find CPS-Device.
 	@param startIndex : Start Index ( >= 1 )
 	@param DeviceNum : Product Device Number
-	@note :: Success : Find Physical Number , Fail : 0
-*/  
+	@return Success : 1 , Fail : 0
+	@~Japanese
+	@brief MCS341 スタックデバイスを探す関数。
+	@param startIndex : インデックス番号 ( >= 1 )
+	@param DeviceNum : 製品デバイス番号
+	@return 成功 1, 失敗 0
+**/
 static unsigned char contec_mcs341_device_FindDevice( int *startIndex, int DeviceNum ){
 
 	int cnt;
@@ -541,10 +796,16 @@ static unsigned char contec_mcs341_device_FindDevice( int *startIndex, int Devic
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_FindDevice);
 
-/*
+/**
+	@~English
+	@brief This function is get the targeting CPS-Device ID.
 	@param dev : Target DeviceNumber ( < deviceNumber )
-	@note :: Success : product Id , Fail : 0
-*/  
+	@return Success : product Id , Fail : 0
+	@~Japanese
+	@brief MCS341 ターゲットのスタックデバイス製品番号を取得する関数。
+	@param dev : ターゲットのデバイスの製品番号 ( < 接続されたデバイス数 )
+	@return 成功  製品番号, 失敗 0
+**/
 static unsigned short contec_mcs341_device_productid_get( int dev ){
 
 	unsigned short valw;
@@ -556,10 +817,16 @@ static unsigned short contec_mcs341_device_productid_get( int dev ){
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_productid_get);
 
-/*
+/**
+	@~English
+	@brief This function is get the targeting CPS-Device Physical ID.
 	@param dev : Target DeviceNumber ( < deviceNumber )
-	@note :: Success : product Id , Fail : 0
-*/  
+	@return Success : product Id , Fail : 0
+	@~Japanese
+	@brief MCS341 ターゲットの物理接続番号を取得する関数。
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@return 成功  物理ID, 失敗 0
+**/
 static unsigned short contec_mcs341_device_physical_id_get( int dev ){
 
 	unsigned short valw;
@@ -571,13 +838,20 @@ static unsigned short contec_mcs341_device_physical_id_get( int dev ){
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_physical_id_get);
 
-
-
-/*
+/**
+	@~English
+	@brief This function is get the targeting CPS-Device mirror register.
 	@param dev : Target DeviceNumber ( < deviceNumber )
 	@param num : Mirror Address ( 0 or 1 )
-	@note :: Success : Mirroring Register Values Get , Fail : 0
-*/  
+	@warning There is a device that does not have the mirror register.
+	@return Success : Mirroring Register Values , Fail : 0
+	@~Japanese
+	@brief MCS341 ターゲットのミラーレジスタを取得する関数。
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@param num : ミラーレジスタのアドレス  ( 0 か 1 )
+	@warning このレジスタを搭載していないデバイスがあります。
+	@return 成功  物理ID, 失敗 0
+**/
 static unsigned char contec_mcs341_device_mirror_get( int dev , int num ){
 
 	unsigned char valb;
@@ -590,12 +864,20 @@ static unsigned char contec_mcs341_device_mirror_get( int dev , int num ){
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_mirror_get);
 
-
-/*
-	@param dev : Target DeviceNumber ( < deviceNumber )
-	@param addr : ROM Address ( 0 or 1 )
-	@param valw : value (ushort)
-*/  
+/**
+	@~English
+	@brief This function is written the targeting CPS-Device ROM.
+	@param baseaddr : Base Address
+	@param valw : value (unsigned short)
+	@par This function is internal function.
+	@return Success : 0
+	@~Japanese
+	@brief MCS341 ターゲットのROMに書き込む関数
+	@param baseaddr : ベースアドレス
+	@param valw : 値 (16bit)
+	@par この関数は内部関数です。
+	@return 成功  物理失敗 0
+**/
 static unsigned char __contec_mcs341_device_rom_write_command( unsigned long baseaddr, unsigned short valw )
 {
 	cps_common_outw( (unsigned long)(baseaddr + CPS_DEVICE_COMMON_ROM_WRITE_ADDR ), 
@@ -626,16 +908,26 @@ static unsigned char __contec_mcs341_device_rom_write_command( unsigned long bas
 	return 0;
 }
 
-/*
+/**
+	@~English
+	@brief This function is written (or read or clear) the targeting CPS-Device's logical ID.
 	@param dev : Target DeviceNumber ( < deviceNumber )
-	@param isWrite : Write or Read flag ( 0 or 1 )
+	@param isWrite : Write ,Read or clear flag
 	@param valb : values ( logical id )
-	@note :: Success : 1 , Fail : 0
-*/  
+	@par This function is internal function.
+	@return Success : 1, Failed : 0
+	@~Japanese
+	@brief MCS341 ターゲットのROMに論理IDを読み込み、書き込み、クリアする関数
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@param isWrite : 書き込み、読み込みまたはクリアフラグ
+	@param valb : 論理ID
+	@par この関数は内部関数です。
+	@return 成功  0, 失敗 1
+**/
 static unsigned char __contec_mcs341_device_logical_id( int dev, int isWrite, unsigned char *valb)
 {
 
-	if( dev >= deviceNumber ) return 0;
+	if( dev >= deviceNumber ) return 1;
 
 	/* Device Id Write */
 	if( isWrite == CPS_DEVICE_COMMON_WRITE ){
@@ -679,10 +971,16 @@ static unsigned char __contec_mcs341_device_logical_id( int dev, int isWrite, un
 	return 0;
 }
 
-/*
+/**
+	@~English
+	@brief This function is read the targeting CPS-Device's logical ID.
 	@param dev : Target DeviceNumber ( < deviceNumber )
-	@note :: Success : Logical ID get Fail : 0
-*/  
+	@return Success : logical id
+	@~Japanese
+	@brief MCS341 ターゲットのROMに論理IDを読み出す関数
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@return 成功  論理ID
+**/
 static unsigned char contec_mcs341_device_logical_id_get( int dev )
 {
 
@@ -696,11 +994,18 @@ static unsigned char contec_mcs341_device_logical_id_get( int dev )
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_logical_id_get);
 
-/*
+/**
+	@~English
+	@brief This function is written the targeting CPS-Device's logical ID.
 	@param dev : Target DeviceNumber ( < deviceNumber )
-	@param valb : id values ( 0 or 1 )
-	@note :: Success : 0
-*/  
+	@param valb : logical id values
+	@return Success : 0
+	@~Japanese
+	@brief MCS341 ターゲットのROMに論理IDを書き込む関数
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@param valb : 論理ID
+	@return 成功  0
+**/
 static unsigned char contec_mcs341_device_logical_id_set( int dev, unsigned char valb )
 {
 
@@ -712,11 +1017,20 @@ static unsigned char contec_mcs341_device_logical_id_set( int dev, unsigned char
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_logical_id_set);
 
-/*
+/**
+	@~English
+	@brief This function is cleared the targeting CPS-Device's logical ID (and all ROM Data).
 	@param dev : Target DeviceNumber ( < deviceNumber )
-	@param valb : id values ( 0 or 1 )
-	@note :: Success : 0
-*/  
+	@warning If you call this function, you own risk.
+	@warning This function was running,the device's ROM clear all area.
+	@return Success : 0
+	@~Japanese
+	@brief MCS341 ターゲットのROMに論理IDを書き込む関数
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@warning この関数を実行することは自己責任となります。
+	@warning 補正などのデバイスに保存した情報もクリアされます。(対象: CPS-AI-1608LI, CPS-AO-1604LI, CPS-SSI-4P )
+	@return 成功  0
+**/
 static unsigned char contec_mcs341_device_logical_id_all_clear( int dev )
 {
 
@@ -728,19 +1042,33 @@ static unsigned char contec_mcs341_device_logical_id_all_clear( int dev )
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_logical_id_all_clear);
 
-/*
+/**
+	@~English
+	@brief This function is written (or read or clear) the targeting CPS-Device's Extension Registers.
 	@param dev : Target DeviceNumber ( < deviceNumber )
-	@param isWrite : Write or Read flag ( 0 or 1 )
-	@param valb : values ( logical id )
-	@note :: Success : 1 , Fail : 0
-*/  
+	@param isWrite : Write ,Read or clear flag
+	@param cate : Category
+	@param num : Page Number
+	@param valw : values ( logical id )
+	@par This function is internal function.
+	@return Success : 1, Failed : 0
+	@~Japanese
+	@brief MCS341 ターゲットのROMの拡張領域を読み込み、書き込み、クリアする関数
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@param isWrite : 書き込み、読み込みまたはクリアフラグ
+	@param cate : カテゴリID
+	@param num : ページ番号 ( 0 - 4 )
+	@param valw : 論理ID
+	@par この関数は内部関数です。
+	@return 成功  0, 失敗 1
+**/
 static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrite, unsigned char cate, unsigned char num, unsigned short *valw)
 {
 
 	unsigned short valExt , valA;
 	if( dev >= deviceNumber ){
 		DEBUG_EEPROM_CONTROL(KERN_INFO" device_extension_value : dev %d\n", dev );
-		return 0;
+		return 1;
 	}
 	/* Change Extension Register */
 	valExt = (cate << 8) ;
@@ -816,10 +1144,20 @@ static unsigned char __contec_mcs341_device_extension_value( int dev, int isWrit
 	return 0;
 }
 
-/*
+/**
+	@~English
+	@brief This function is get the targeting CPS-Device's extension register.
 	@param dev : Target DeviceNumber ( < deviceNumber )
-	@note :: Success : Logical ID get Fail : 0
-*/  
+	@param cate : Category
+	@param num : Page Number
+	@return Success : get value from extension register, Failed : 0
+	@~Japanese
+	@brief MCS341 ターゲットのROMから拡張領域を読み出す関数
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@param cate : カテゴリID
+	@param num : ページ番号 ( 0 - 4 )
+	@return 成功  拡張領域から取得した値 失敗 0
+**/
 static unsigned short contec_mcs341_device_extension_value_get( int dev , int cate ,int num )
 {
 
@@ -833,15 +1171,26 @@ static unsigned short contec_mcs341_device_extension_value_get( int dev , int ca
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_extension_value_get);
 
-/*
+/**
+	@~English
+	@brief This function is written the targeting CPS-Device's extension register.
 	@param dev : Target DeviceNumber ( < deviceNumber )
-	@param valb : id values ( 0 or 1 )
-	@note :: Success : 0
-*/  
+	@param cate : Category
+	@param num : Page Number
+	@param valw : value
+	@return Success : 0 , Failed : 1
+	@~Japanese
+	@brief MCS341 ターゲットのROMから拡張領域に書き込む関数
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@param cate : カテゴリID
+	@param num : ページ番号 ( 0 - 4 )
+	@param valw : 値
+	@return 成功  0 失敗 1
+**/
 static unsigned short contec_mcs341_device_extension_value_set( int dev, int cate, int num, unsigned short valw )
 {
 
-	if( dev >= deviceNumber ) return 0;
+	if( dev >= deviceNumber ) return 1;
 	
 	__contec_mcs341_device_extension_value( dev, CPS_DEVICE_COMMON_WRITE ,cate, num, &valw);
 
@@ -850,15 +1199,26 @@ static unsigned short contec_mcs341_device_extension_value_set( int dev, int cat
 EXPORT_SYMBOL_GPL(contec_mcs341_device_extension_value_set);
 
 
-/*
+/**
+	@~English
+	@brief This function is cleared the targeting CPS-Device's extension register (and all ROM Data).
 	@param dev : Target DeviceNumber ( < deviceNumber )
-	@param valb : id values ( 0 or 1 )
-	@note :: Success : 0
-*/  
+	@param cate : Category
+	@warning If you call this function, you own risk.
+	@warning This function was running,the device's ROM clear all area.
+	@return Success : 0, Failed :1
+	@~Japanese
+	@brief MCS341 ターゲットのROMの拡張領域をクリアする関数
+	@param dev : ターゲットの物理接続番号 ( < 接続されたデバイス数 )
+	@param cate : カテゴリID
+	@warning この関数を実行することは自己責任となります。
+	@warning デバイスに保存した論理ID情報もクリアされます。(対象: CPS-AI-1608LI, CPS-AO-1604LI, CPS-SSI-4P )
+	@return 成功  0 失敗 1
+**/
 static unsigned short contec_mcs341_device_extension_value_all_clear( int dev, int cate )
 {
 
-	if( dev >= deviceNumber ) return 0;
+	if( dev >= deviceNumber ) return 1;
 	
 	__contec_mcs341_device_extension_value( dev, CPS_DEVICE_COMMON_CLEAR ,cate, 0, NULL );
 
@@ -866,11 +1226,20 @@ static unsigned short contec_mcs341_device_extension_value_all_clear( int dev, i
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_extension_value_all_clear);
 
+/// @}
 
-/*
-	@param BaseAddr : Base Address ( not Virtual Memory Address )
-	@note :: Is used cpscom driver. return Target Device Number
-*/ 
+/**
+	@~English
+	@brief This function is get the targeting physical device Number from BaseAddress.
+	@param baseAddr : Base Address (but it is not Virtual Memory Address )
+	@par This function is used cpscom driver only.
+	@return Success : Target Device Number
+	@~Japanese
+	@brief MCS341 ベースアドレスから物理デバイス番号を取得する関数
+	@param baseAddr : ベースアドレス(このベースアドレスは仮想メモリアドレスではありません）
+	@par この関数はcpscomドライバのみ使用されています。
+	@return 成功  物理デバイス番号
+**/
 static unsigned char contec_mcs341_device_deviceNum_get( unsigned long baseAddr )
 {
 		return (  (baseAddr & 0x00002F00 ) >> 8 );
@@ -881,15 +1250,42 @@ EXPORT_SYMBOL_GPL(contec_mcs341_device_deviceNum_get);
 	@param BaseAddr : Base Address ( not Virtual Memory Address )
 	@note :: Is used cpscom driver. return Current Serial Channel. 
 */ 
+/**
+	@~English
+	@brief This function is get the targeting serial port Number from BaseAddress.
+	@param baseAddr : Base Address (but it is not Virtual Memory Address )
+	@par This function is used cpscom driver only.
+	@return Success : Target Serial Port Number
+	@~Japanese
+	@brief MCS341 ベースアドレスから使用シリアル番号を取得する関数
+	@param baseAddr : ベースアドレス(このベースアドレスは仮想メモリアドレスではありません）
+	@par この関数はcpscomドライバのみ使用されています。
+	@return 成功  ターゲット戸なるシリアル番号
+**/
 static unsigned char contec_mcs341_device_serial_channel_get( unsigned long baseAddr )
 {
 		return (  ( ( baseAddr - 0x10 ) & 0x00000038 ) >> 3);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_device_serial_channel_get);
 
-/*
-	@note :: cps-driver initialize. 
-*/ 
+
+
+/**
+ @~English
+ @name Initialize and Exit Functions
+ @~Japanese
+ @name 初期化/完了用関数
+*/
+/// @{
+
+/**
+	@~English
+	@brief cps-driver init function.
+	@return Success: 0, Failed: otherwise 0
+	@~Japanese
+	@brief cps-driver 初期化関数.
+	@return 成功: 0, 失敗: 0以外
+**/
 static int contec_mcs341_controller_init(void)
 {
 	int ret = 0;
@@ -908,7 +1304,7 @@ static int contec_mcs341_controller_init(void)
 
 	contec_mcs341_controller_cpsDevicesInit();
 
-	contec_mcs341_controller_cpsChildUnitInit(CPS_CHILD_UNIT_NONE);
+	contec_mcs341_controller_cpsChildUnitInit(child_unit);
 
 	//2016.02.17 timer add
 	if( !reset_button_check_mode ){
@@ -929,9 +1325,12 @@ static int contec_mcs341_controller_init(void)
 	return ret;
 }
 
-/*
-	@note :: cps-driver exit. 
-*/ 
+/**
+	@~English
+	@brief cps-driver exit function.
+	@~Japanese
+	@brief cps-driver 終了関数.
+**/
 static void contec_mcs341_controller_exit(void)
 {
 	int cnt = 0;
@@ -960,5 +1359,6 @@ static void contec_mcs341_controller_exit(void)
 module_init(contec_mcs341_controller_init);
 module_exit(contec_mcs341_controller_exit);
 
+/// @}
 
 

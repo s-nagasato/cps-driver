@@ -321,7 +321,7 @@ static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wSta
 
 /**
 	@~English
-	@ AIO Command Function.
+	@brief AIO Command Function.
 	@param BaseAddr : base address
 	@param isReadWrite : write, read, or call flag
 	@param isEcu	: ecu or command flag

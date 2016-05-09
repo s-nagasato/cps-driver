@@ -1,4 +1,4 @@
-subdirs = CalibCommand Calibration measure
+subdirs = CalibCommand Calibration measure 
 MAKE=make --no-print-directory
 
 all:	

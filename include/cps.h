@@ -103,6 +103,12 @@ typedef struct __cps_device_id{
 #define CPS_MCS341_LED_ST2(val)	( val & 0x04 )
 #define CPS_MCS341_LED_ERR(val)	( val & 0x08 )
 
+#define CPS_MCS341_LED_PWR_BIT	( 0x01 )
+#define CPS_MCS341_LED_ST1_BIT	( 0x02 )
+#define CPS_MCS341_LED_ST2_BIT	( 0x04 )
+#define CPS_MCS341_LED_ERR_BIT	( 0x08 )
+
+
 /* Controller INTERRUPT Values MACRO */
 #define CPS_MCS341_INTERRUPT_GROUP_SET(n,val)	( val << n )
 #define CPS_MCS341_INTERRUPT_GROUP_GET(n,val)	( ( (val & ( 1 << n ) ) >> n ) )
@@ -160,5 +166,6 @@ typedef struct __cps_device_id{
 #define CPS_CONTROLLER_MCS341_RESET_POUT GPIO_TO_PIN( 3, 9 )		//GPIO 105
 #define CPS_CONTROLLER_MCS341_TICK	(HZ / 50) // 20 msec
 
+#define CPS_CONTROLLER_MCS341_FPGA_POWER_PIN	GPIO_TO_PIN(0, 16)	// GPIO INIT END 
 
 /*********************************************************/

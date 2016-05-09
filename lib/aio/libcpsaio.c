@@ -1569,7 +1569,7 @@ unsigned long ContecCpsAioEcuInp( short Id, unsigned long addr, unsigned char *v
 
 	arg.addr = addr;
 	arg.isEcu = 1;
-	ioctl( Id, IOCTL_CPSAIO_DIRECT_INPUT, arg );
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_INPUT, arg );
 	*value = (unsigned char)arg.val;
 
 	return AIO_ERR_SUCCESS;
@@ -1580,17 +1580,37 @@ unsigned long ContecCpsAioEcuInp( short Id, unsigned long addr, unsigned char *v
 unsigned long ContecCpsAioEcuInpW( short Id, unsigned long addr, unsigned short *value )
 {
 
+	struct cpsaio_direct_command_arg arg;
+
+	arg.addr = addr;
+	arg.isEcu = 1;
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_INPUT, arg );
+	*value = (unsigned short)arg.val;
+
 	return 0;
 }
 
 unsigned long ContecCpsAioEcuInpD( short Id, unsigned long addr, unsigned long *value )
 {
 
+	struct cpsaio_direct_command_arg arg;
+
+	arg.addr = addr;
+	arg.isEcu = 1;
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_INPUT, arg );
+	*value = (unsigned long)arg.val;
+
 	return 0;
 }
 
 unsigned long ContecCpsAioEcuOutp( short Id, unsigned long addr, unsigned char value )
 {
+	struct cpsaio_direct_command_arg arg;
+
+	arg.addr = addr;
+	arg.isEcu = 1;
+	arg.val = value;
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT, arg );
 
 	return 0;
 }
@@ -1598,11 +1618,27 @@ unsigned long ContecCpsAioEcuOutp( short Id, unsigned long addr, unsigned char v
 unsigned long ContecCpsAioEcuOutpW( short Id, unsigned long addr, unsigned short value )
 {
 
+	struct cpsaio_direct_command_arg arg;
+
+	arg.addr = addr;
+	arg.isEcu = 1;
+	arg.val = value;
+
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT, arg );
+
 	return 0;
 }
 
 unsigned long ContecCpsAioEcuOutpD( short Id, unsigned long addr, unsigned long value )
 {
+
+	struct cpsaio_direct_command_arg arg;
+
+	arg.addr = addr;
+	arg.isEcu = 1;
+	arg.val = value;
+
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT, arg );
 
 	return 0;
 }

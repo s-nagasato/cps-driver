@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.0.7
+ * Version 1.0.8
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -38,7 +38,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.0.7"
+#define DRV_VERSION	"1.0.8"
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("CONTEC CONPROSYS BASE Driver");
@@ -69,13 +69,13 @@ MODULE_VERSION(DRV_VERSION);
 #define DEBUG_EXITMEMORY(fmt...)        do { } while (0)
 #endif
 
-#if 0
+#if 1
 #define DEBUG_ADDR_VAL_OUT(fmt...)        printk(fmt)
 #else
 #define DEBUG_ADDR_VAL_OUT(fmt...)        do { } while (0)
 #endif
 
-#if 0
+#if 1
 #define DEBUG_ADDR_VAL_IN(fmt...)        printk(fmt)
 #else
 #define DEBUG_ADDR_VAL_IN(fmt...)        do { } while (0)
@@ -96,13 +96,49 @@ static unsigned char __iomem *map_devbaseaddr[CPS_DEVICE_MAX_NUM];	///< I/O Memo
 static struct timer_list mcs341_timer;	///< timer
 static unsigned int reset_count = 0;	///< reset_counter
 
+//2016.04.29 Error LED timer counter
+#define CPS_MCS341_ARRAYNUM_LED_PWR	0
+#define CPS_MCS341_ARRAYNUM_LED_ST1	1
+#define CPS_MCS341_ARRAYNUM_LED_ST2	2
+#define CPS_MCS341_ARRAYNUM_LED_ERR	3
+
+#define CPS_MCS341_MAX_LED_ARRAY_NUM	4
+/**
+	@~English
+	@brief led timer counter
+	@~Japanese
+	@brief LEDタイマーカウンタ
+**/
+static unsigned int led_timer_count[CPS_MCS341_MAX_LED_ARRAY_NUM] = {0};	///< errled_counter
+/**
+	@~English
+	@brief Led ( 0... Disabled, 1...Enabled )
+	@~Japanese
+	@brief LEDフラグ ( 0 ... 不可 , 1...可 )
+**/
+static unsigned int ledEnable[CPS_MCS341_MAX_LED_ARRAY_NUM] ={0};
+/**
+	@~English
+	@brief Led bit ( 0... OFF, 1...ON )
+	@~Japanese
+	@brief エラーLEDビット ( 0 ... OFF , 1...ON )
+**/
+static unsigned int ledState[CPS_MCS341_MAX_LED_ARRAY_NUM] ={0};
+
+
+
+
 // 2016.02.19 GPIO-87 Push/Pull Test Mode 
 static unsigned int reset_button_check_mode = 0;///< gpio-87 test mode ( 1...Enable, 0... Disable )
 module_param(reset_button_check_mode, uint, 0644 );
 
-// 2016.04.14  and CPS-MC341-DS2 and CPS-MC341Q-DS1 mode add
+// 2016.04.14  and CPS-MC341-DS2 and CPS-MC341Q-DS1 mode add (Ver.1.0.7)
 static unsigned int child_unit = CPS_CHILD_UNIT_NONE;	//CPS-MC341-DS1
 module_param(child_unit, uint, 0644 );
+
+// 2016.02.19 GPIO-87 Push/Pull Test Mode 
+static unsigned int watchdog_timer_msec = 0;///< gpio-87 test mode ( 0..None, otherwise 0... watchdog on )
+module_param(watchdog_timer_msec, uint, 0644 );
 
 static unsigned char deviceNumber;		///< device number
 
@@ -114,6 +150,9 @@ static const int AM335X_IRQ_NMI=7;	///< IRQ NUMBER
 void *am335x_irq_dev_id = (void *)&AM335X_IRQ_NMI;
 
 static int CompleteDevIrqs ;
+
+static void contec_mcs341_controller_clear_watchdog( void );
+static unsigned char contec_mcs341_controller_setLed( int ledBit, int isEnable );
 
 /**
 	@~English
@@ -173,6 +212,22 @@ void mcs341_controller_timer_function(unsigned long arg)
 {
 
 	struct timer_list *tick = (struct timer_list *) arg;
+	int cnt;
+
+	// Err LED 追加 Ver.1.0.8
+	for( cnt = CPS_MCS341_ARRAYNUM_LED_PWR; cnt < CPS_MCS341_MAX_LED_ARRAY_NUM; cnt ++ ){
+
+		if( ledEnable[cnt] ){
+			if( led_timer_count[cnt] >= 50 ){ // about 1 sec over
+				ledState[cnt] ^= 0x01;	// 点滅
+				contec_mcs341_controller_setLed( (1 << cnt) , ledState[cnt] );
+				led_timer_count[cnt] = 0;
+			}
+			else
+				led_timer_count[cnt] ++;
+		}
+	}
+
 
 	if( gpio_get_value(CPS_CONTROLLER_MCS341_RESET_PIN) ){
 		reset_count += 1;
@@ -185,6 +240,10 @@ void mcs341_controller_timer_function(unsigned long arg)
 			orderly_poweroff(false);
 		}
 		reset_count = 0;
+	}
+
+	if( watchdog_timer_msec ){
+		contec_mcs341_controller_clear_watchdog();
 	}
 
 	mod_timer(tick, jiffies + CPS_CONTROLLER_MCS341_TICK );
@@ -230,7 +289,7 @@ EXPORT_SYMBOL_GPL(contec_cps_micro_delay_sleep);
 **/
 static void contec_mcs341_outb(unsigned int addr, unsigned char valb )
 {
-	DEBUG_ADDR_VAL_OUT(KERN_INFO " cps-system: Offset Address : %x Value %x \n", addr, valb );
+	DEBUG_ADDR_VAL_OUT(KERN_INFO "[out] cps-system: Offset Address : %x Value %x \n", addr, valb );
 	cps_common_outb( (unsigned long)(map_baseaddr + addr), valb );
 }
 
@@ -247,7 +306,7 @@ static void contec_mcs341_outb(unsigned int addr, unsigned char valb )
 static void contec_mcs341_inpb(unsigned int addr, unsigned char *valb )
 {
 	cps_common_inpb( (unsigned long)(map_baseaddr + addr), valb );
-	DEBUG_ADDR_VAL_IN(KERN_INFO " cps-system: Offset Address : %x Value %x\n", addr, *valb );
+	DEBUG_ADDR_VAL_IN(KERN_INFO "[in]  cps-system: Offset Address : %x Value %x\n", addr, *valb );
 }
 
 /**
@@ -287,6 +346,68 @@ static unsigned char contec_mcs341_controller_setPinMode(int Pin3g3, int Pin3g4,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_setPinMode);
+
+
+/**
+	@~English
+	@brief MCS341 Controller's set watchdog timer.
+	@param wd_timer  : watchdog timer value ( wd_timer * 500(msec)  )
+	@param isEnable : 0...disable , 1...Enable
+	@~Japanese
+	@brief MCS341 Controller の ウォッチドッグタイマを設定する関数
+	@param wd_timer : ウォッチドッグタイマの値 (  設定値 * 500 ミリ秒 ) 
+	@param isEnable : 0...不可能 ,　1...可能
+**/
+static unsigned char contec_mcs341_controller_setWatchdog( int wd_timer , int isEnable ){
+
+	unsigned char valb;
+
+	if ( wd_timer >= 128 ) return 1;
+	if ( isEnable > 1 || isEnable < 0 ) return 1;
+
+	valb = CPS_MCS341_WDTIMER_DELAY(wd_timer) | isEnable;
+
+	contec_mcs341_outb(CPS_CONTROLLER_MCS341_WDTIMER_ADDR, valb);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_setWatchdog);
+
+/**
+	@~English
+	@brief MCS341 Controller's set led.
+	@param ledBit : set many LED Bits Data
+	@param isEnable : 0...disable , 1...Enable
+	@~Japanese
+	@brief MCS341 Controller の LEDを設定する関数
+	@param ledBit : LED 8ビットデータ
+	@param isEnable : 0...不可能 ,　1...可能  
+**/
+static unsigned char contec_mcs341_controller_setLed( int ledBit, int isEnable ){
+
+	unsigned char valb;
+
+	if ( isEnable > 1 || isEnable < 0 ) return 1;
+
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_LED_ADDR, &valb);
+
+	if( ledBit & CPS_MCS341_LED_PWR_BIT )
+		valb = (valb & ~CPS_MCS341_LED_PWR_BIT )  | CPS_MCS341_LED_PWR(isEnable);
+
+	if( ledBit & CPS_MCS341_LED_ST1_BIT )
+		valb = (valb & ~CPS_MCS341_LED_ST1_BIT )  | CPS_MCS341_LED_ST1(isEnable << 1);
+
+	if( ledBit & CPS_MCS341_LED_ST2_BIT )
+		valb = (valb & ~CPS_MCS341_LED_ST2_BIT )  | CPS_MCS341_LED_ST2(isEnable << 2);
+
+	if( ledBit & CPS_MCS341_LED_ERR_BIT )
+		valb = (valb & ~CPS_MCS341_LED_ERR_BIT )  | CPS_MCS341_LED_ERR(isEnable << 3);
+
+	contec_mcs341_outb(CPS_CONTROLLER_MCS341_LED_ADDR, valb);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_setLed);
 
 /**
 	@~English
@@ -483,6 +604,42 @@ static unsigned char contec_mcs341_controller_getDeviceNum(void){
 	return CPS_MCS341_DEVICENUM_VALUE(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDeviceNum);
+
+/**
+	@~English
+	@brief MCS341 Controller's clear watchdog timer.
+	@~Japanese
+	@brief MCS341 Controller の ウォッチドッグタイマーをクリアする関数
+	@param ledBit : LED 8ビットデータ
+	@param isEnable : 0...不可能 ,　1...可能  
+**/
+static void contec_mcs341_controller_clear_watchdog( void ){
+
+	unsigned char valb;
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_WDTIMER_ADDR	, &valb);
+
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_clear_watchdog);
+
+/**
+	@~English
+	@brief MCS341 Controller's get led.
+	@return ledBit : many LED Bits Data
+	@~Japanese
+	@brief MCS341 Controller の LEDを設定する関数
+	@param ledBit : LED 8ビットデータ
+	@return Device Number
+**/
+static unsigned char contec_mcs341_controller_getLed( void ){
+
+	unsigned char valb;
+
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_LED_ADDR, &valb);
+
+	return valb;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_getLed);
+
 /**
 	@~English
 	@brief MCS341 Controller's get Interrupt Enable/Disable of Group.
@@ -586,18 +743,23 @@ static void contec_mcs341_device_idsel_complete( void ){
 	@brief MCS341 Controllerのスタックデバイスを初期化する関数。
 	@return 成功 0, 失敗 0以外.
 **/
-static unsigned char contec_mcs341_controller_cpsDevicesInit(void){
+static int contec_mcs341_controller_cpsDevicesInit(void){
 	unsigned char valb = 0;
 	unsigned int timeout = 0;
-	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb ); 
+	cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
+
+	if( (valb & 0x0F) == 0x00 || (valb & 0x0F) == 0x0F ){
+		printk(KERN_ERR"cps-driver :[ERROR:INIT] FPGA +3Hex Read %x (Hex)!! Check FPGA Hardware!! \n", valb);
+		return -EIO;
+	}
+
 	if( CPS_MCS341_SYSTEMINIT_BUSY( valb ) ){
 		cps_common_outb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR),
 			CPS_MCS341_SYSTEMINIT_SETRESET );
-
-		do{
+			do{
 			contec_cps_micro_delay_sleep(5);
 			cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
-			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return 1;
+			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
 			timeout ++;
 		}while( !(valb & CPS_MCS341_SYSTEMINIT_INIT_END) );
 
@@ -607,15 +769,14 @@ static unsigned char contec_mcs341_controller_cpsDevicesInit(void){
 		*/ 		
 		contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC );	
 		contec_mcs341_device_idsel_complete();
-
-/*
+	/*
 		cps_common_outb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_RESET_WADDR) ,
 			CPS_MCS341_RESET_SET_IDSEL_COMPLETE );
 		do{
 			contec_cps_micro_delay_sleep(5);
 			cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb);
 		}while( valb & CPS_MCS341_SYSTEMINIT_INITBUSY );
-*/
+	*/
 		cps_common_outb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR),
 			( CPS_MCS341_SYSTEMINIT_SETRESET | CPS_MCS341_SYSTEMINIT_SETINTERRUPT) );
 		
@@ -623,15 +784,16 @@ static unsigned char contec_mcs341_controller_cpsDevicesInit(void){
 		do{
 			contec_cps_micro_delay_sleep(5);
 			cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
-			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return 2;
+			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
 			timeout ++; 
 		}while( !(valb & CPS_MCS341_SYSTEMINIT_INTERRUPT_END)  );
 	}
-		/*
-			When many devices was connected more than 15, getDeviceNumber gets 14 values.
-			CPS-MCS341 must wait 1 msec.
-		*/ 	
+	/*
+		When many devices was connected more than 15, getDeviceNumber gets 14 values.
+		CPS-MCS341 must wait 1 msec.
+	*/ 	
 	contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC );
+
 	return 0;
 
 }
@@ -1302,24 +1464,44 @@ static int contec_mcs341_controller_init(void)
 	
 	cps_fpga_init();
 
-	contec_mcs341_controller_cpsDevicesInit();
+	if( (ret = contec_mcs341_controller_cpsDevicesInit() ) == 0 ){
 
-	contec_mcs341_controller_cpsChildUnitInit(child_unit);
+		contec_mcs341_controller_cpsChildUnitInit(child_unit);
 
-	//2016.02.17 timer add
-	if( !reset_button_check_mode ){
+		//2016.02.17 timer add Ver.1.0.7
 		init_timer(&mcs341_timer);
 		mcs341_timer.function = mcs341_controller_timer_function;
 		mcs341_timer.data = (unsigned long)&mcs341_timer;
 		mcs341_timer.expires = jiffies + CPS_CONTROLLER_MCS341_TICK;
 		add_timer(&mcs341_timer);
-		gpio_free(CPS_CONTROLLER_MCS341_RESET_PIN);
-		gpio_request(CPS_CONTROLLER_MCS341_RESET_PIN, "cps_mcs341_reset");
-		gpio_direction_input(CPS_CONTROLLER_MCS341_RESET_PIN);
+	
+		if( !reset_button_check_mode ){
+			gpio_free(CPS_CONTROLLER_MCS341_RESET_PIN);
+			gpio_request(CPS_CONTROLLER_MCS341_RESET_PIN, "cps_mcs341_reset");
+			gpio_direction_input(CPS_CONTROLLER_MCS341_RESET_PIN);
 
-		gpio_free(CPS_CONTROLLER_MCS341_RESET_POUT);
-		gpio_request(CPS_CONTROLLER_MCS341_RESET_POUT, "cps_mcs341_reset_out");
-		gpio_export(CPS_CONTROLLER_MCS341_RESET_POUT, true ) ; //2016.02.22 
+			gpio_free(CPS_CONTROLLER_MCS341_RESET_POUT);
+			gpio_request(CPS_CONTROLLER_MCS341_RESET_POUT, "cps_mcs341_reset_out");
+			gpio_export(CPS_CONTROLLER_MCS341_RESET_POUT, true ) ; //2016.02.22  Ver.1.0.7
+		}
+
+		// Ver.1.0.8 watchdog timer mode add
+		if( watchdog_timer_msec ){
+			printk(KERN_INFO"cps-driver : FPGA Watchdog timer Enable %d msec.\n", watchdog_timer_msec*500 );
+			contec_mcs341_controller_setWatchdog(watchdog_timer_msec, CPS_MCS341_WDTIMER_ENABLE );
+			ledEnable[CPS_MCS341_ARRAYNUM_LED_ST1] = 1;
+		}
+	}else{
+	
+		printk(KERN_ERR"cps-driver : FPGA SAFE MODE (FPGA POWER OFF)\n"); 
+			gpio_direction_output(CPS_CONTROLLER_MCS341_FPGA_POWER_PIN, 0);
+
+		if( map_baseaddr ){
+			cps_common_mem_release( 0x08000000,
+				0x100,
+				map_baseaddr ,
+				CPS_COMMON_MEM_REGION);
+		}
 	}
 
 	return ret;

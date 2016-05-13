@@ -1,0 +1,7 @@
+*.[ao]
+*.so.*
+*.ko
+sample/ssi/etc/
+help/
+driver/release/
+lib/release/

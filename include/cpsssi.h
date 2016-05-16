@@ -3,21 +3,43 @@
 #include <linux/sched.h>
 
 /* structure */
+/**
+	@struct __cpsssi_device_data
+	@~English
+	@brief structure device data
+	@~Japanese
+	@brief デバイスデータ構造体
+**/
 typedef struct __cpsssi_device_data{
-	char Name[32];
-	unsigned int ProductNumber;
-	unsigned int ssiChannel;
-	void* ChannelData;
+	char Name[32];///< デバイス名
+	unsigned int ProductNumber;///< 製品番号
+	unsigned int ssiChannel;///< チャネル数
+	void* ChannelData;///< チャネルデータ
 }CPSSSI_DEV_DATA, *PCPSSSI_DEV_DATA;
 
+
+/**
+	@struct __cpsssi_4p_channel_data
+	@~English
+	@brief CPS-SSI-4P channel data
+	@~Japanese
+	@brief CPS-SSI-4P チャネルデータ
+**/
 typedef struct __cpsssi_4p_channel_data{
-	unsigned short Gain_RSense;					// Gain( ( Delta-RSense )
-	unsigned char Current_Wire_Status;	// 3-Wire or 4-Wire
-	unsigned char Current_Rtd_Standard;	// PT or JPT
-	unsigned char lastStatus;						// Measure Last Status
+	unsigned short Gain_RSense;					///< Gain( ( Delta-RSense )
+	unsigned char Current_Wire_Status;	///< 3-Wire or 4-Wire
+	unsigned char Current_Rtd_Standard;	///< PT or JPT
+	unsigned char lastStatus;						///< Measure Last Status
 
 }CPSSSI_4P_CHANNEL_DATA, *PCPSSSI_4P_CHANNEL_DATA;
-	
+
+/**
+	@struct __cpsssi_device_data
+	@~English
+	@brief I/O Control structure
+	@~Japanese
+	@brief I/O コントロール 構造体
+**/
 struct cpsssi_ioctl_arg{
 	unsigned int ch;
 	unsigned long val;

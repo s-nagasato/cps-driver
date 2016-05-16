@@ -2,15 +2,28 @@
 #include <linux/ioctl.h>
 #include <linux/sched.h>
 
-#define CPSAIO_MAX_BUFFER	8192	//</ max buffer size
+#define CPSAIO_MAX_BUFFER	8192	///< max buffer size
 
 /* structure */
+/**
+	@struct __cpsaio_buffer
+	@~English
+	@brief structure Data Buffer
+	@~Japanese
+	@brief データバッファ構造体
+**/
 typedef struct __cpsaio_buffer{
 	unsigned char *data;
 	unsigned long size;
 }CPSAIO_BUFFER_DATA, *PCPSAIO_BUFFER_DATA;
 
-
+/**
+	@struct __cpsaio_inout_data
+	@~English
+	@brief structure union paramter
+	@~Japanese
+	@brief 共有パラメータ構造体
+**/
 typedef struct __cpsaio_inout_data{
 	unsigned int Resolution;
 	unsigned int Channel;
@@ -18,12 +31,19 @@ typedef struct __cpsaio_inout_data{
 	CPSAIO_BUFFER_DATA softbuf;
 }CPSAIO_INOUT_DATA, *PCPSAIO_INOUT_DATA;
 
+/**
+	@struct __cpsaio_device_data
+	@~English
+	@brief structure device data
+	@~Japanese
+	@brief デバイスデータ構造体
+**/
 typedef struct __cpsaio_device_data{
-	char Name[32];
-	unsigned int ProductNumber;
-	unsigned int Ability;
-	CPSAIO_INOUT_DATA ai;
-	CPSAIO_INOUT_DATA ao;
+	char Name[32];	///< デバイス名
+	unsigned int ProductNumber;///< 製品番号
+	unsigned int Ability;///< 能力 ( AI, AO, ECU )
+	CPSAIO_INOUT_DATA ai;///< AI Data
+	CPSAIO_INOUT_DATA ao;///< AO Data
 /*	
 	unsigned int aiResolution;
 	unsigned int aiChannel;
@@ -34,6 +54,13 @@ typedef struct __cpsaio_device_data{
 */
 }CPSAIO_DEV_DATA, *PCPSAIO_DEV_DATA;
 	
+/**
+	@struct __cpsaio_device_data
+	@~English
+	@brief I/O Control structure
+	@~Japanese
+	@brief I/O コントロール 構造体
+**/
 struct cpsaio_ioctl_arg{
 	unsigned char inout;	///< in or out
 	unsigned short ch;	///< channel
@@ -41,12 +68,25 @@ struct cpsaio_ioctl_arg{
 };
 
 
-
+/**
+	@struct __cpsaio_device_data
+	@~English
+	@brief structure direct I/O
+	@~Japanese
+	@brief 直接I/O　構造体
+**/
 struct cpsaio_direct_arg{
 	unsigned long addr;	///< address
 	unsigned long val;	///< value
 };
 
+/**
+	@struct __cpsaio_device_data
+	@~English
+	@brief structure direct command I/O
+	@~Japanese
+	@brief 直接I/Oコマンド　構造体
+**/
 struct cpsaio_direct_command_arg{
 	unsigned long addr;	///< address
 	unsigned long val;	///< value

@@ -29,7 +29,7 @@
 #include "../../include/cps_ids.h"
 #include "../../include/cps_extfunc.h"
 
-#define DRV_VERSION	"0.9.5"
+#define DRV_VERSION	"0.9.7"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Digital I/O driver");
@@ -40,6 +40,13 @@ MODULE_VERSION(DRV_VERSION);
 
 #define CPSDIO_DRIVER_NAME "cpsdio"
 
+/**
+	@struct cps_dio_data
+	@~English
+	@brief CPSDIO driver's File
+	@~Japanese
+	@brief CPSDIO ドライバファイル構造体
+**/
 typedef struct __cpsdio_driver_file{
 	spinlock_t		lock; 				///< lock
 	struct task_struct *int_callback;
@@ -52,21 +59,37 @@ typedef struct __cpsdio_driver_file{
 
 }CPSDIO_DRV_FILE,*PCPSDIO_DRV_FILE;
 
+
+/*!
+ @~English
+ @name DebugPrint macro
+ @~Japanese
+ @name デバッグ用表示マクロ
+*/
+/// @{
 #if 0
 #define DEBUG_CPSDIO_OPEN(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSDIO_OPEN(fmt...)	do { } while (0)
 #endif
-
-static int cpsdio_max_devs;			/*device count */
-static int cpsdio_major = 0;
-static int cpsdio_minor = 0; 
+/// @}
+///
+static int cpsdio_max_devs;		///< device count
+static int cpsdio_major = 0;	///< major number
+static int cpsdio_minor = 0;	///< minor number
 
 static struct cdev cpsdio_cdev;
 static struct class *cpsdio_class = NULL;
 
 static dev_t cpsdio_dev;
 
+/**
+	@struct cps_dio_data
+	@~English
+	@brief CPSDIO driver's Data
+	@~Japanese
+	@brief CPSDIO ドライバデータ構造体
+**/
 static const CPSDIO_DEV_DATA cps_dio_data[] = {
 	{
 		.Name = "CPS-DIO-0808L",
@@ -89,8 +112,8 @@ static const CPSDIO_DEV_DATA cps_dio_data[] = {
 	{
 		.Name = "CPS-RRY-4PCC",
 		.ProductNumber = CPS_DEVICE_RRY_4PCC,
-		.inPortNum = 8,
-		.outPortNum = 8
+		.inPortNum = 0,
+		.outPortNum = 4
 	},
 	{
 		.Name = "",
@@ -102,69 +125,203 @@ static const CPSDIO_DEV_DATA cps_dio_data[] = {
 
 #include "cpsdio_devdata.h"
 
+/**
+	@~English
+	@brief This function get Digital Input Data.
+	@param BaseAddr : Base Address
+	@param val : value
+	@return true : 0
+	@~Japanese
+	@brief デジタル入力のデータを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param val : 値
+	@return 成功 : 0
+**/
 static long cpsdio_read_digital_input( unsigned long BaseAddr, unsigned char *val )
 {
 	cps_common_inpb( (unsigned long)( BaseAddr + OFFSET_INPUT0_CPS_DIO_0808 ) , val );
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function get Digital Output Echo Data.
+	@param BaseAddr : Base Address
+	@param val : value
+	@return true : 0
+	@~Japanese
+	@brief デジタル出力のエコーバック・データを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param val : 値
+	@return 成功 : 0
+**/
 static long cpsdio_read_digital_output_echo( unsigned long BaseAddr, unsigned char *val )
 {
 	cps_common_inpb( (unsigned long)( BaseAddr + OFFSET_OUTPUT_ECHO0_CPS_DIO_0808 ) , val );
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function set Digital Output Data.
+	@param BaseAddr : Base Address
+	@param val : value
+	@return true : 0
+	@~Japanese
+	@brief デジタル出力のデータを設定する関数
+	@param BaseAddr : ベースアドレス
+	@param val : 値
+	@return 成功 : 0
+**/
 static long cpsdio_write_digital_output( unsigned long BaseAddr, unsigned char val )
 {
 	cps_common_outb( (unsigned long)( BaseAddr + OFFSET_OUTPUT_ECHO0_CPS_DIO_0808 ) , val );
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function set Battery.　（Internal or External).
+	@param BaseAddr : Base Address
+	@param isOn : select Battery ( 1 : Internal, 0 : External )
+	@return true : 0
+	@~Japanese
+	@brief デジタル出力の内部電源か外部電源かを設定する関数
+	@param BaseAddr : ベースアドレス
+	@param isOn : 内部電源か外部電源か（1 : 内部電源 , 0: 外部電源 )
+	@return 成功 : 0
+**/
 static long cpsdio_set_internal_battery( unsigned long BaseAddr, unsigned char isOn )
 {
 	cps_common_outb( (unsigned long)( BaseAddr + OFFSET_INTERNALBATTERY_CPS_DIO_0808 ) , isOn );
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function set Digital Filter.
+	@param BaseAddr : Base Address
+	@param filter : digital filter value.
+	@return true : 0
+	@~Japanese
+	@brief デジタル入力のデジタルフィルタを設定する関数
+	@param BaseAddr : ベースアドレス
+	@param filter : デジタルフィルタの設定値
+	@return 成功 : 0
+**/
 static long cpsdio_set_digital_filter( unsigned long BaseAddr, unsigned char filter )
 {
 	cps_common_outb( (unsigned long)( BaseAddr + OFFSET_DIGITALFILTER_CPS_DIO_0808 ) , filter );
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function get Digital Filter.
+	@param BaseAddr : Base Address
+	@param filter : digital filter value.
+	@return true : 0
+	@~Japanese
+	@brief デジタル入力のデジタルフィルタを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param filter : デジタルフィルタの取得値
+	@return 成功 : 0
+**/
 static long cpsdio_get_digital_filter( unsigned long BaseAddr, unsigned char *filter )
 {
 	cps_common_inpb( (unsigned long)( BaseAddr + OFFSET_DIGITALFILTER_CPS_DIO_0808 ) , filter );
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function get Interrupt Status.
+	@param BaseAddr : Base Address
+	@param wStatus : Ineterrupt Status.
+	@return true : 0
+	@~Japanese
+	@brief デジタル入力の割り込みステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : 割り込みステータス
+	@return 成功 : 0
+**/
 static long cpsdio_read_interrupt_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
 	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_INTERRUPT_STATUS_CPS_DIO_0808 ) , (unsigned short*) wStatus );
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function get Interrupt mask.
+	@param BaseAddr : Base Address
+	@param wStatus : Ineterrupt Mask Status.
+	@return true : 0
+	@~Japanese
+	@brief デジタル入力の割り込みマスクを設定する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : 割り込みマスク
+	@return 成功 : 0
+**/
 static long cpsdio_write_interrupt_mask( unsigned long BaseAddr, unsigned short wStatus )
 {
 	cps_common_outw( (unsigned long)(BaseAddr + OFFSET_INTERRUPT_STATUS_CPS_DIO_0808 ) , wStatus );
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function get Interrupt edge.
+	@param BaseAddr : Base Address
+	@param wStatus : Ineterrupt Edge Status.
+	@return true : 0
+	@~Japanese
+	@brief デジタル入力の割り込みエッジを設定する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : 割り込みエッジ
+	@return 成功 : 0
+**/
 static long cpsdio_set_interrupt_edge( unsigned long BaseAddr, unsigned short wStatus )
 {
 	cps_common_outw( (unsigned long)(BaseAddr + OFFSET_INTERRUPT_EGDE_CPS_DIO_0808 ) , wStatus );
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function get Interrupt edge.
+	@param BaseAddr : Base Address
+	@param wStatus : Ineterrupt Edge Status.
+	@return true : 0
+	@~Japanese
+	@brief デジタル入力の割り込みエッジを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wStatus : 割り込みエッジ
+	@return 成功 : 0
+**/
 static long cpsdio_get_interrupt_edge( unsigned long BaseAddr, unsigned short *wStatus )
 {
 	cps_common_inpw( (unsigned long)(BaseAddr + OFFSET_INTERRUPT_EGDE_CPS_DIO_0808 ) , wStatus );
 	return 0;
 }
 
-#define CPSDIO_TYPE_INPUT 0
-#define CPSDIO_TYPE_OUTPUT 1
+#define CPSDIO_TYPE_INPUT 0	///< 入力
+#define CPSDIO_TYPE_OUTPUT 1	///< 出力
 
+/**
+	@~English
+	@brief This function get Port Number with Digital I/O device.
+	@param node : device node
+	@param type : CPSDIO_TYPE_INPUT : input, CPS_TYPE_OUTPUT : output
+	@param wNum : port number
+	@return true : 0
+	@~Japanese
+	@brief デジタル機器のポート数を取得する関数
+	@param node : ノード
+	@param type : CPSDIO_TYPE_INPUT : 入力, CPS_TYPE_OUTPUT : 出力
+	@param wNum : ポート数
+	@return 成功 : 0
+**/
 static long cpsdio_get_dio_portnum( int node, unsigned char type, unsigned short *wNum )
 {
 	int product_id, cnt;
@@ -183,6 +340,18 @@ static long cpsdio_get_dio_portnum( int node, unsigned char type, unsigned short
 	return 1;
 }
 
+/**
+	@~English
+	@brief This function get Device Name with Digital I/O device.
+	@param node : device node
+	@param devName : Device Name
+	@return true : 0
+	@~Japanese
+	@brief デジタル機器のデバイス名を取得する関数
+	@param node : ノード
+	@param wNum : デバイス名
+	@return 成功 : 0
+**/
 static long cpsdio_get_dio_devname( int node, unsigned char devName[] )
 {
 	int product_id, cnt;
@@ -200,6 +369,18 @@ static long cpsdio_get_dio_devname( int node, unsigned char devName[] )
 /***** Interrupt function *******************************/
 static const int AM335X_IRQ_NMI=7;
 
+/**
+	@~English
+	@brief cpsdio_isr_func
+	@param irq : interrupt
+	@param dev_instance : device instance
+	@return intreturn ( IRQ_HANDLED or IRQ_NONE )
+	@~Japanese
+	@brief cpsdio 割り込み処理
+	@param irq : IRQ番号
+	@param dev_instance : デバイス・インスタンス
+	@return IRQ_HANDLED か, IRQ_NONE
+**/
 irqreturn_t cpsdio_isr_func(int irq, void *dev_instance){
 
 	unsigned short wStatus;
@@ -229,6 +410,20 @@ irqreturn_t cpsdio_isr_func(int irq, void *dev_instance){
 
 /***** file operation functions *******************************/
 
+/**
+	@~English
+	@brief cpsdio_ioctl
+	@param filp : struct file pointer
+	@param cmd : iocontrol command
+	@param arg : argument
+	@return Success 0, Failed:otherwise 0. (see errno.h)
+	@~Japanese
+	@brief cpsdio_ioctl
+	@param filp : file構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
+**/
 static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg )
 {
 	PCPSDIO_DRV_FILE dev = filp->private_data;
@@ -456,13 +651,17 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 }
 
 /**
-	@function cpsdio_open
+	@~English
+	@brief This function is called by open user function.
 	@param filp : struct file pointer
-	@param inode : node parameter 
-	@param count : file data 
-	@param f_pos : Loff_t pointer
-	@return (errno.h)
-	@note This function is called by open user function.
+	@param inode : node parameter
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はOPEN関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param inode : ノード構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外
+	@note filp->private_dataは プロセスに１個, inode->i_privateは nodeに1個
 **/
 static int cpsdio_open(struct inode *inode, struct file *filp )
 {
@@ -540,6 +739,19 @@ NOT_IOMEM_ALLOCATION:
 	return iRet;
 }
 
+/**
+	@~English
+	@brief This function is called by close user function.
+	@param filp : struct file pointer
+	@param inode : node parameter
+	@return success: 0 , failed: otherwise 0
+ 	@~Japanese
+	@brief この関数はCLOSE関数で呼び出されます。
+	@param filp : ファイル構造体ポインタ
+	@param inode : ノード構造体ポインタ
+	@return 成功: 0 , 失敗: 0以外
+	@note filp->private_dataは プロセスに１個, inode->i_privateは nodeに1個
+**/
 static int cpsdio_close(struct inode * inode, struct file *filp ){
 
 	PCPSDIO_DRV_FILE dev;
@@ -566,15 +778,25 @@ static int cpsdio_close(struct inode * inode, struct file *filp ){
 
 }
 
-
-
+/**
+	@struct cpsaio_fops
+	@brief CPSAIO file operations
+**/
 static struct file_operations cpsdio_fops = {
-		.owner = THIS_MODULE,
-		.open = cpsdio_open,
-		.release = cpsdio_close,
-		.unlocked_ioctl = cpsdio_ioctl,
+		.owner = THIS_MODULE,///< owner's name
+		.open = cpsdio_open,///< open
+		.release = cpsdio_close,///< close
+		.unlocked_ioctl = cpsdio_ioctl,/// I/O Control
 };
 
+/**
+	@~English
+	@brief cpsdio init function.
+	@return Success: 0, Failed: otherwise 0
+	@~Japanese
+	@brief cpsdio 初期化関数.
+	@return 成功: 0, 失敗: 0以外
+**/
 static int cpsdio_init(void)
 {
 
@@ -635,6 +857,12 @@ static int cpsdio_init(void)
 	return 0;
 }
 
+/**
+	@~English
+	@brief cpsdio exit function.
+	@~Japanese
+	@brief cpsdio 終了関数.
+**/
 static void cpsdio_exit(void)
 {
 

@@ -112,8 +112,8 @@ static const CPSDIO_DEV_DATA cps_dio_data[] = {
 	{
 		.Name = "CPS-RRY-4PCC",
 		.ProductNumber = CPS_DEVICE_RRY_4PCC,
-		.inPortNum = 8,
-		.outPortNum = 8
+		.inPortNum = 0,
+		.outPortNum = 4
 	},
 	{
 		.Name = "",

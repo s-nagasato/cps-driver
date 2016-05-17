@@ -801,23 +801,32 @@ unsigned long cpsssi_4p_get_channeldata_lastStatus( unsigned int ch ,CPSSSI_4P_C
 	@param ch : channel
 	@param pData : offset data list .
 	@param dwVal : value
+	@note 2016.05.17 : The Status value change different value for Overflow(underflow).
+	@return The value adds offset.
 	@~Japanese
 	@brief CPS-SSI-4Pのオフセット値を追加する関数
 	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・オフセット・リスト
 	@param dwVal : 値
+	@note 2016.05.17 : 加減算のパターンによって　キャリーオーバによるステータス値がおかしくなる現象を修正
+	@return オフセット補正が加算された値
 **/
 unsigned long cpsssi_4p_addsub_channeldata_offset( unsigned int node, unsigned int ch , CPSSSI_4P_CHANNEL_DATA pData[], unsigned long dwVal ){
 
 	unsigned char offset;
 
+	unsigned long tmpVal = (dwVal & 0x00FFFFFF );
+
 	cpsssi_4p_get_channeldata_offset( node, ch , pData, &offset );
 
 	if( offset & 0x80 )		 
-		return ( dwVal - (unsigned long)( (0x80 - (offset & 0x7F)) << 5) );
+		tmpVal =  ( tmpVal - (unsigned long)( (0x80 - (offset & 0x7F)) << 5) );
 	else
-		return ( dwVal + (unsigned long)( (offset & 0x7F) << 5) );
+		tmpVal =  ( tmpVal + (unsigned long)( (offset & 0x7F) << 5) );
+
+	return ( (dwVal & 0xFF000000) | (tmpVal & 0x00FFFFFF ) );
+
 }
 
 /***** Interrupt function *******************************/

@@ -154,7 +154,7 @@ module_param(child_unit, uint, 0644 );
 
 // 2016.02.19 GPIO-87 Push/Pull Test Mode 
 static unsigned int watchdog_timer_msec = 0;///< gpio-87 test mode ( 0..None, otherwise 0... watchdog on )
-module_param(watchdog_timer_msec, uint, 0644 );
+//module_param(watchdog_timer_msec, uint, 0644 );
 
 static unsigned char deviceNumber;		///< device number
 
@@ -352,10 +352,12 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_setFpgaResetReg);
 	@brief MCS341 Controller's set watchdog timer.
 	@param wd_timer  : watchdog timer value ( wd_timer * 500(msec)  )
 	@param isEnable : 0...disable , 1...Enable
+	@note Unimplemented.
 	@~Japanese
 	@brief MCS341 Controller の ウォッチドッグタイマを設定する関数
 	@param wd_timer : ウォッチドッグタイマの値 (  設定値 * 500 ミリ秒 ) 
 	@param isEnable : 0...不可能 ,　1...可能
+	@note 未実装
 **/
 static unsigned char contec_mcs341_controller_setWatchdog( int wd_timer , int isEnable ){
 
@@ -607,10 +609,10 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDeviceNum);
 /**
 	@~English
 	@brief MCS341 Controller's clear watchdog timer.
+	@note Unimplemented.
 	@~Japanese
 	@brief MCS341 Controller の ウォッチドッグタイマーをクリアする関数
-	@param ledBit : LED 8ビットデータ
-	@param isEnable : 0...不可能 ,　1...可能  
+	@note 未実装
 **/
 static void contec_mcs341_controller_clear_watchdog( void ){
 

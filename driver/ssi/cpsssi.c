@@ -8,8 +8,9 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  * Ver 1.0.1  04,Apr,2016 Add IOCTL_CPSSSI_STARTBUSYSTATUS I/O Control Command.
- * Ver.1.0.2  14,Apr,2016 Add
+ * Ver.1.0.2  14,Apr,2016 Fixed Open and Close function.(This driver can access many Processes.)
  * Ver.1.0.3  26,Apr,2016 Change code from "unsigned short" to "short".
+ * Ver.1.0.4  17,May,2016 Change cpsssi_4p_addsub_channeldata_offset function.
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -32,7 +33,7 @@
 #include "../../include/cps_ids.h"
 #include "../../include/cps_extfunc.h"
 
-#define DRV_VERSION	"1.0.3"
+#define DRV_VERSION	"1.0.4"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS SenSor Input driver");

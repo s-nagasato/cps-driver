@@ -75,8 +75,8 @@ int main(int argc, char *argv[]){
 		printf(" [select] : set \"offset\" or \"gain\" (example gain) \n");
 		printf(" [range] :  set range. (example p20ma ) \n");
 		printf(" [channel] : set channel value. (example 0) \n");
-		printf(" [value]  : set hex value. This range can set from 0000 to FFFF. (example C0A0 ) \n\n");
-		printf(" CalibSetAi cpsaio0 gain p20ma 0 0E00 \n");		
+		printf(" [value]  : set hex value. This range can set from 00 to FF. (example C0A0 ) \n\n");
+		printf(" CalibSetAi cpsaio0 gain p20ma 0 0E \n");
 		return ( 1 );
 	}
 

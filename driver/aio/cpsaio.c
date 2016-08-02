@@ -28,7 +28,7 @@
 #include "../../include/cps_ids.h"
 #include "../../include/cps_extfunc.h"
 
-#define DRV_VERSION	"1.0.3"
+#define DRV_VERSION	"1.0.4"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -929,6 +929,8 @@ long cpsaio_ioctl_ai(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 						cpsaio_read_ai_status( (unsigned long)dev->baseAddr, &valw );
 					}while( valw & CPS_AIO_AI_STATUS_CALIBRATION_BUSY );
 
+					//ポテンショメータへの反映時間が BusyFlagがおちたあと500msecかかるため　Waitする
+					contec_cps_micro_delay_sleep( 500 * USEC_PER_MSEC );
 					break;
 
 		case IOCTL_CPSAIO_GET_CALIBRATION_AI:
@@ -988,7 +990,8 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
 
-					if( dev->data.ProductNumber == CPS_DEVICE_AO_1604LI )
+					if( dev->data.ProductNumber == CPS_DEVICE_AO_1604LI ||
+							dev->data.ProductNumber == CPS_DEVICE_AO_1604VLI )
 						valw = calc_DAC161S055( valw );
 
 					cpsaio_write_ao_data( (unsigned long)dev->baseAddr , valw );
@@ -1096,6 +1099,9 @@ long cpsaio_ioctl_ao(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg )
 						cpsaio_read_ao_status( (unsigned long)dev->baseAddr, &valw );
 					}while( valw & CPS_AIO_AO_STATUS_CALIBRATION_BUSY );
 
+					//ポテンショメータへの反映時間が BusyFlagがおちたあと500msecかかるため　Waitする
+					contec_cps_micro_delay_sleep( 500 * USEC_PER_MSEC );
+
 					break;
 
 		case IOCTL_CPSAIO_GET_CALIBRATION_AO:
@@ -1171,6 +1177,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 		lRet = cpsaio_ioctl_ao(dev, cmd, arg );
 		if( lRet != 0 ) return lRet;
 	}
+
 
 	switch( cmd ){
 
@@ -1252,14 +1259,15 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					valw = (unsigned short) ioc.val;
 
 					switch( dev->data.ProductNumber ){
-					case CPS_DEVICE_AI_1608LI: num = 0;break;
+					case CPS_DEVICE_AI_1608LI:
+					case CPS_DEVICE_AI_1608ALI:num = 0;break;
 					default :
 						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
-
-					cpsaio_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AI, num,  valw );
 					spin_unlock_irqrestore(&dev->lock, flags);
+					cpsaio_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AI, num,  valw );
+//					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSAIO_EEPROM(KERN_INFO"EEPROM-WRITE:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 					break;
@@ -1273,12 +1281,17 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					spin_lock_irqsave(&dev->lock, flags);
 					switch( dev->data.ProductNumber ){
-					case CPS_DEVICE_AI_1608LI: num = 0;break;
+					case CPS_DEVICE_AI_1608LI:
+					case CPS_DEVICE_AI_1608ALI: num = 0;break;
 					default :
 						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
+					spin_unlock_irqrestore(&dev->lock, flags);
+
 					cpsaio_read_eeprom( dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AI, num, &valw );
+
+					spin_lock_irqsave(&dev->lock, flags);
 					ioc.val = (unsigned long) valw;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1304,14 +1317,15 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					valw = (unsigned short) ioc.val;
 
 					switch( dev->data.ProductNumber ){
-					case CPS_DEVICE_AO_1604LI: num = (unsigned short) ioc.ch;break;
+					case CPS_DEVICE_AO_1604LI:
+					case CPS_DEVICE_AO_1604VLI: num = (unsigned short) ioc.ch;break;
 					default :
 						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
-
-					cpsaio_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO, num,  valw );
 					spin_unlock_irqrestore(&dev->lock, flags);
+					cpsaio_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO, num,  valw );
+					//spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSAIO_EEPROM(KERN_INFO"EEPROM-WRITE:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 					break;
@@ -1325,12 +1339,17 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					spin_lock_irqsave(&dev->lock, flags);
 					switch( dev->data.ProductNumber ){
-					case CPS_DEVICE_AO_1604LI: num = (unsigned short) ioc.ch;break;
+					case CPS_DEVICE_AO_1604LI:
+					case CPS_DEVICE_AO_1604VLI: num = (unsigned short) ioc.ch;break;
 					default :
 						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
+					spin_unlock_irqrestore(&dev->lock, flags);
+
 					cpsaio_read_eeprom( dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO, num, &valw );
+
+					spin_lock_irqsave(&dev->lock, flags);
 					ioc.val = (unsigned long) valw;
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1347,17 +1366,20 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					spin_lock_irqsave(&dev->lock, flags);
 
 					switch( dev->data.ProductNumber ){
-					case CPS_DEVICE_AI_1608LI: num = 1;break;
-					case CPS_DEVICE_AO_1604LI: num = dev->data.ao.Channel;break;
+					case CPS_DEVICE_AI_1608LI:
+					case CPS_DEVICE_AI_1608ALI: num = 1;break;
+					case CPS_DEVICE_AO_1604LI:
+					case CPS_DEVICE_AO_1604VLI : num = dev->data.ao.Channel;break;
 					}
+
+					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( abi & CPS_AIO_ABILITY_AI )
 						cpsaio_clear_fpga_extension_reg(dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AI, num );
 					if( abi & CPS_AIO_ABILITY_AO )
 						cpsaio_clear_fpga_extension_reg(dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_AO, num );
-
 					cpsaio_clear_eeprom( dev->node );
-					spin_unlock_irqrestore(&dev->lock, flags);
+//					spin_unlock_irqrestore(&dev->lock, flags);
 
 					DEBUG_CPSAIO_EEPROM(KERN_INFO"EEPROM-CLEAR\n");
 					break;

@@ -1,7 +1,12 @@
 *.[ao]
 *.so.*
 *.ko
-sample/ssi/etc/
 help/
+driver/ctrl/
 driver/release/
 lib/release/
+driver/cnt/
+lib/cnt/
+sample/ssi/etc/
+sample/cnt/
+

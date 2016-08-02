@@ -11,6 +11,7 @@
  * Ver.1.0.2  14,Apr,2016 Fixed Open and Close function.(This driver can access many Processes.)
  * Ver.1.0.3  26,Apr,2016 Change code from "unsigned short" to "short".
  * Ver.1.0.4  17,May,2016 Change cpsssi_4p_addsub_channeldata_offset function.
+ * Ver.1.0.5  22,Jul,2016 Moved spin_unlock_irqrestore of eeprom_function.
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -33,7 +34,7 @@
 #include "../../include/cps_ids.h"
 #include "../../include/cps_extfunc.h"
 
-#define DRV_VERSION	"1.0.4"
+#define DRV_VERSION	"1.0.5"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS SenSor Input driver");
@@ -1108,9 +1109,9 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
-
+					spin_unlock_irqrestore(&dev->lock, flags);//Ver.1.0.5
 					cpsssi_write_eeprom( dev->node , CPS_DEVICE_COMMON_ROM_WRITE_PAGE_SSI, num,  valw );
-					spin_unlock_irqrestore(&dev->lock, flags);
+//					spin_unlock_irqrestore(&dev->lock, flags); //Ver.1.0.5
 
 					DEBUG_CPSSSI_EEPROM(KERN_INFO"EEPROM-WRITE:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 					break;
@@ -1129,9 +1130,10 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						spin_unlock_irqrestore(&dev->lock, flags);
 						return -EFAULT;
 					}
+					spin_unlock_irqrestore(&dev->lock, flags);//Ver.1.0.5
 					cpsssi_read_eeprom( dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_SSI, num, &valw );
 					ioc.val = (unsigned long) valw;
-					spin_unlock_irqrestore(&dev->lock, flags);
+//					spin_unlock_irqrestore(&dev->lock, flags);//Ver.1.0.5
 
 					DEBUG_CPSSSI_EEPROM(KERN_INFO"EEPROM-READ:[%lx]=%x\n",(unsigned long)( dev->baseAddr ), valw );
 				
@@ -1148,11 +1150,11 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					switch( dev->data.ProductNumber ){
 					case CPS_DEVICE_SSI_4P: num = dev->data.ssiChannel;break;
 					}
-
+					spin_unlock_irqrestore(&dev->lock, flags);//Ver.1.0.5
 					cpsssi_clear_fpga_extension_reg(dev->node ,CPS_DEVICE_COMMON_ROM_WRITE_PAGE_SSI, num );
 
 					cpsssi_clear_eeprom( dev->node );
-					spin_unlock_irqrestore(&dev->lock, flags);
+//					spin_unlock_irqrestore(&dev->lock, flags);//Ver.1.0.5
 
 					DEBUG_CPSSSI_EEPROM(KERN_INFO"EEPROM-CLEAR\n");
 					break;

@@ -5,7 +5,7 @@ CC = arm-linux-gnueabi-gcc
 LD = arm-linux-gnueabi-ld
 LIB_DIR=/usr/arm-linux-gnueabi/lib/
 CFLAGS= -g -Wall
-VERSION =1.0.0
+VERSION =1.0.1
 
 all:libcpsdio.o libCpsDio.so
 

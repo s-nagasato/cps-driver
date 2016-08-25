@@ -1,33 +1,45 @@
 #CC = gcc
 #LD = ld
-
 CC = arm-linux-gnueabi-gcc
 LD = arm-linux-gnueabi-ld
-LIB_DIR=/usr/arm-linux-gnueabi/lib/
-LIB_DIR_SELF=/usr/local/lib
+TARGET=libCpsAio.so
+OBJ=libcpsaio.o
+SRC=libcpsaio.c
 CFLAGS= -g -Wall
-VERSION =1.0.4
 
-all:libcpsaio.o libCpsAio.so
+VERSION =1.0.5
 
-libcpsaio.o:	
-	${CC} libcpsaio.c -c -fPIC -o libcpsaio.o -lm
+# CPS_SDK_MACRO_CHECK ( without CONPROSYS SDK )
+ifneq "$(CPS_SDK_INSTALL_FULLDIR)" ""
+TARGET_ROOTFS   := ${CPS_SDK_INSTALL_FULLDIR}/rootfs
+endif
 
-libCpsAio.so:
-	${CC} -shared -O2 -Wl,-soname,libCpsAio.so -o libCpsAio.so.$(VERSION) libcpsaio.o -lm
+ifneq "$(CPS_SDK_ROOTDIR)" ""
+INCLUDE= -I$(CPS_SDK_ROOTDIR)/driver/cps-drivers/include
+EXTRA_CFLAGS	+= -DCONFIG_CONPROSYS_SDK
+CPS_LIB_REELASE_DIR:=../../release
+else
+INCLUDE= -I../../include/
+CPS_LIB_REELASE_DIR:=../release
+endif
+
+
+all:$(OBJ) ${TARGET}
+
+$(OBJ):	
+	${CC} ${INCLUDE} ${LD_FLAGS} $(SRC) -c -fPIC -o $(OBJ) -lm
+
+$(TARGET):
+	${CC} ${INCLUDE} ${LD_FLAGS}  -shared -O2 -Wl,-soname,$(TARGET) -o $(TARGET) $(OBJ) -lm
 
 install:
-	cp libCpsAio.so.$(VERSION) $(LIB_DIR_SELF)
-	ldconfig
-
-install-cross:
-	rm -f libCpsAio.so
-	ln -s libCpsAio.so.$(VERSION) libCpsAio.so
-	cp libCpsAio.so.$(VERSION) $(LIB_DIR)
-	mv libCpsAio.so $(LIB_DIR)
+	cp -p $(TARGET) $(TARGET_ROOTFS)/usr/local/lib/$(TARGET).$(VERSION)
+	@if [ ! -f $(TARGET_ROOTFS)/usr/local/lib/$(TARGET) ]; then \
+	( cd $(TARGET_ROOTFS)/usr/local/lib/ && ln -s $(TARGET).$(VERSION) $(TARGET) ) \
+	fi
 
 release_copy:
-	cp ./libCpsAio.so.$(VERSION) ../release/
+	cp -p ./$(TARGET) $(CPS_LIB_REELASE_DIR)/$(TARGET).$(VERSION)
 
 clean:
-	rm -f *.o *.so *.so.$(VERSION)
+	rm -f $(OBJ) $(TARGET)

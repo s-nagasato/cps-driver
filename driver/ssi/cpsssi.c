@@ -12,6 +12,7 @@
  * Ver.1.0.3  26,Apr,2016 Change code from "unsigned short" to "short".
  * Ver.1.0.4  17,May,2016 Change cpsssi_4p_addsub_channeldata_offset function.
  * Ver.1.0.5  22,Jul,2016 Moved spin_unlock_irqrestore of eeprom_function.
+ * Ver.1.0.6  10,Aug,2016 Change from contec_cps_micro_delay_sleep to contec_cps_micro_sleep.
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -29,18 +30,30 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 
-#include "../../include/cps_common_io.h"
-#include "../../include/cps.h"
-#include "../../include/cps_ids.h"
-#include "../../include/cps_extfunc.h"
+#ifdef CONFIG_CONPROSYS_SDK
+ #include "../include/cps_common_io.h"
+ #include "../include/cps.h"
+ #include "../include/cps_ids.h"
+ #include "../include/cps_extfunc.h"
 
-#define DRV_VERSION	"1.0.5"
+ #include "../include/cpsssi.h"
+
+#else
+ #include "../../include/cps_common_io.h"
+ #include "../../include/cps.h"
+ #include "../../include/cps_ids.h"
+ #include "../../include/cps_extfunc.h"
+
+ #include "../../include/cpsssi.h"
+
+#endif
+
+#define DRV_VERSION	"1.0.6"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS SenSor Input driver");
 MODULE_AUTHOR("syunsuke okamoto");
 MODULE_VERSION(DRV_VERSION);
-#include "../../include/cpsssi.h"
 
 #define CPSSSI_DRIVER_NAME "cpsssi"
 
@@ -89,6 +102,12 @@ static LIST_HEAD(cpsssi_xp_head);
 #define DEBUG_CPSSSI_EEPROM(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSSSI_EEPROM(fmt...)	do { } while (0)
+#endif
+
+#if 0
+#define DEBUG_CPSSSI_IOCTL(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSSSI_IOCTL(fmt...)	do { } while (0)
 #endif
 
 /// @}
@@ -199,7 +218,7 @@ unsigned long cpsssi_write_eeprom(unsigned int dev, unsigned int cate, unsigned 
 		contec_mcs341_device_extension_value_set(dev , cate, num, val);
 		cpsssi_read_eeprom( dev, cate, num, &chkVal );
 //		chkVal = contec_mcs341_device_extension_value_get(dev ,cate,  num );
-		contec_cps_micro_delay_sleep( 1 );
+		contec_cps_micro_sleep( 1 );
 		if( count > 5 ){
 			return 1;
 		}
@@ -387,7 +406,7 @@ static long cpsssi_command_4p( unsigned long BaseAddr, unsigned char isReadWrite
 
 	// Busy Wait
 	do{
-		contec_cps_micro_delay_sleep( 1 );
+		contec_cps_micro_delay( 1 );//use udelay ( bacause the sleep function can not use in spinlock.) //Ver.1.0.6
 		cpsssi_read_ssi_status( BaseAddr , &status );
 	}while( status );
 
@@ -598,7 +617,7 @@ void cpsssi_command_4p_get_temprature( unsigned long BaseAddr, unsigned int ch ,
 	case 3 : wCom = CPS_SSI_SSI_SET_ADDR_COMMAND_TEMP_CHANNEL3; break;
 	}
 
-	//contec_cps_micro_delay_sleep( 100 * 1000 );
+	//contec_cps_micro_delay( 100 * 1000 );
 
 	for( i = 0, *dwVal = 0; i < 4 ; i ++ ){
 		cpsssi_command_4p( BaseAddr, CPS_SSI_4P_COMMAND_READ,
@@ -897,6 +916,10 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 	struct cpsssi_ioctl_arg ioc;
 	memset( &ioc, 0 , sizeof(ioc) );
+	if ( dev == (PCPSSSI_DRV_FILE)NULL ){
+		DEBUG_CPSSSI_IOCTL(KERN_INFO"CPSSSI_DRV_FILE NULL POINTER.");
+		return -EFAULT;
+	}
 
 	//memcpy(pData, dev->data.ChannelData, sizeof(CPSSSI_4P_CHANNEL_DATA) * dev->data.ssiChannel);
 
@@ -1195,10 +1218,16 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 		if( dev->ref ){
 			dev->ref++;
 			return 0;
+		}else{
+			return -EFAULT;
 		}
 	}
 
-	filp->private_data = (PCPSSSI_DRV_FILE)kmalloc( sizeof(CPSSSI_DRV_FILE) , GFP_KERNEL );
+	filp->private_data = (PCPSSSI_DRV_FILE)kzalloc( sizeof(CPSSSI_DRV_FILE) , GFP_KERNEL );
+	if( filp->private_data == (PCPSSSI_DRV_FILE)NULL ){
+		iRet = -ENOMEM;
+		goto NOT_MEM_PRIVATE_DATA;
+	}
 	dev = (PCPSSSI_DRV_FILE)filp->private_data;
 	inode->i_private = dev;
 
@@ -1220,6 +1249,7 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	do{
 		if( cps_ssi_data[cnt].ProductNumber == -1 ) {
 			iRet = -EFAULT;
+			DEBUG_CPSSSI_OPEN(KERN_INFO"product_id:%x", product_id);
 			goto NOT_FOUND_SSI_PRODUCT;
 		}
 		if( cps_ssi_data[cnt].ProductNumber == product_id ){
@@ -1246,7 +1276,7 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	ret = request_irq(AM335X_IRQ_NMI, cpsssi_isr_func, IRQF_SHARED, "cps-ssi-intr", dev);
 
 	if( ret ){
-		printk(" request_irq failed.(%x) \n",ret);
+		DEBUG_CPSSSI_OPEN(" request_irq failed.(%x) \n",ret);
 	}
 
 	// spin_lock initialize
@@ -1267,6 +1297,11 @@ NOT_FOUND_SSI_PRODUCT:
 
 NOT_IOMEM_ALLOCATION:
 	kfree( dev );
+
+NOT_MEM_PRIVATE_DATA:
+ 
+	inode->i_private = (PCPSSSI_DRV_FILE)NULL;
+	filp->private_data = (PCPSSSI_DRV_FILE)NULL;
 
 	return iRet;
 }
@@ -1290,7 +1325,9 @@ static int cpsssi_close(struct inode * inode, struct file *filp ){
 
 	if ( inode->i_private != (PCPSSSI_DRV_FILE)NULL ){
 		dev =  (PCPSSSI_DRV_FILE)inode->i_private;
-		dev->ref--;
+
+		if( dev->ref > 0 ) dev->ref--;
+
 		if( dev->ref == 0 ){
 
 			free_irq(AM335X_IRQ_NMI, dev);
@@ -1304,8 +1341,8 @@ static int cpsssi_close(struct inode * inode, struct file *filp ){
 			kfree( dev );
 			
 			inode->i_private = (PCPSSSI_DRV_FILE)NULL;
-			filp->private_data = (PCPSSSI_DRV_FILE)NULL;
 		}
+		filp->private_data = (PCPSSSI_DRV_FILE)NULL;
 	}
 	return 0;
 
@@ -1317,10 +1354,10 @@ static int cpsssi_close(struct inode * inode, struct file *filp ){
 	@brief CPSSSI file operations
 **/
 static struct file_operations cpsssi_fops = {
-		.owner = THIS_MODULE,
-		.open = cpsssi_open,
-		.release = cpsssi_close,
-		.unlocked_ioctl = cpsssi_ioctl,
+		.owner = THIS_MODULE,	///< owner's name
+		.open = cpsssi_open,	///< open
+		.release = cpsssi_close,	///< close
+		.unlocked_ioctl = cpsssi_ioctl, ///< I/O Control
 };
 
 

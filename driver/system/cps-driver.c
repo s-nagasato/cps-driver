@@ -37,16 +37,22 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.0.10"
+#define DRV_VERSION	"1.0.11"
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("CONTEC CONPROSYS BASE Driver");
 MODULE_AUTHOR("syunsuke okamoto");
 MODULE_VERSION(DRV_VERSION);
 
-#include "../../include/cps.h"
-#include "../../include/cps_ids.h"
-#include "../../include/cps_common_io.h"
+#ifdef CONFIG_CONPROSYS_SDK
+ #include "../include/cps_common_io.h"
+ #include "../include/cps.h"
+ #include "../include/cps_ids.h"
+#else
+ #include "../../include/cps_common_io.h"
+ #include "../../include/cps.h"
+ #include "../../include/cps_ids.h"
+#endif
 
 /**
  @~English
@@ -233,27 +239,56 @@ irqreturn_t am335x_nmi_isr(int irq, void *dev_instance){
 	@brief MCS341 マイクロ秒ウェイト関数
 	@note 2016.04.22 : 1ミリ秒未満の場合, udelay それ以上の場合は msleep_interruptibleに変更
 	@note 2016.05.16 : 1ミリ秒未満の場合 udelayから usleep_rangeに変更
+	@note 2016.08.09 : スピンロック中にsleepすることが禁止のため、引数を追加
 	@param usec : マイクロ秒
 **/
-static void contec_cps_micro_delay_sleep(unsigned long usec ){
-/*
-	while( usec > 0 ){
-		udelay( 1 );
-		usec--;
-	}
-*/
-	if( (usec % 1000) > 0){
-//
-//		udelay( usec % 1000 );
-		usleep_range( (usec % 1000) , 1000);
-	}
+static void contec_cps_micro_delay_sleep(unsigned long usec, unsigned int isUsedDelay){
 
-	if( (usec / 1000) > 0 ){
-		msleep_interruptible( usec / 1000 );
+	if( isUsedDelay	){
+		while( usec > 0 ){
+			udelay( 1 );
+			usec--;
+		}		
 	}
+	else{
+		if( (usec % 1000) > 0){
+			usleep_range( (usec % 1000) , 1000);
+		}
 
+		if( (usec / 1000) > 0 ){
+			msleep_interruptible( usec / 1000 );
+		}
+	}
 }
 EXPORT_SYMBOL_GPL(contec_cps_micro_delay_sleep);
+
+/**
+	@~English
+	@brief MCS341 Controller's micro second sleep time funciton
+	@param usec : times( micro second order )
+	@~Japanese
+	@brief MCS341 マイクロ秒ウェイト関数
+
+	@param usec : マイクロ秒
+**/
+static void contec_cps_micro_sleep(unsigned long usec){
+	contec_cps_micro_delay_sleep( usec, 0 );
+}
+EXPORT_SYMBOL_GPL(contec_cps_micro_sleep);
+
+/**
+	@~English
+	@brief MCS341 Controller's micro second delay time funciton
+	@param usec : times( micro second order )
+	@~Japanese
+	@brief MCS341 マイクロ秒ウェイト関数
+
+	@param usec : マイクロ秒
+**/
+static void contec_cps_micro_delay(unsigned long usec){
+	contec_cps_micro_delay_sleep( usec, 1 );
+}
+EXPORT_SYMBOL_GPL(contec_cps_micro_delay);
 
 /**
 	@~English
@@ -273,7 +308,7 @@ static void __contec_cps_before_shutdown_wait_devices( void )
 		printk(KERN_WARNING"cps_driver: Wait time [%d] sec.",	deviceNumber * 5 );
 		// Wait 5 sec
 		for( cnt = 0 ; cnt < deviceNumber; cnt ++ ){
-			contec_cps_micro_delay_sleep( 5 * USEC_PER_SEC );
+			contec_cps_micro_sleep( 5 * USEC_PER_SEC );
 		}
 	}
 
@@ -821,7 +856,7 @@ static void __contec_mcs341_device_idsel_complete( void ){
 		}
 		// 
 		cps_common_outb( (unsigned long) ( map_devbaseaddr[0] ) , (deviceNumber | 0x80 ) );
-		contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC );
+		contec_cps_micro_sleep( 1 * USEC_PER_MSEC );
 
 		nInterrupt = (deviceNumber / 4) + 1;
 		for( cnt = 0; cnt < nInterrupt; cnt++ )
@@ -866,7 +901,7 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETRESET;
 		contec_mcs341_controller_setSystemInit();
 			do{
-			contec_cps_micro_delay_sleep(5);
+			contec_cps_micro_sleep(5);
 //		cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
 			contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
 			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
@@ -877,13 +912,13 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 			When many devices was connected more than 15, getDeviceNumber gets 14 values.
 			CPS-MCS341 must wait 1 msec.
 		*/ 		
-		contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC );	
+		contec_cps_micro_sleep( 1 * USEC_PER_MSEC );	
 		__contec_mcs341_device_idsel_complete();
 	/*
 		cps_common_outb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_RESET_WADDR) ,
 			CPS_MCS341_RESET_SET_IDSEL_COMPLETE );
 		do{
-			contec_cps_micro_delay_sleep(5);
+			contec_cps_micro_sleep(5);
 			cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb);
 		}while( valb & CPS_MCS341_SYSTEMINIT_INITBUSY );
 	*/
@@ -891,7 +926,7 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 				contec_mcs341_controller_setSystemInit();
 		timeout = 0;
 		do{
-			contec_cps_micro_delay_sleep(5);
+			contec_cps_micro_sleep(5);
 //		cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
 			contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
 			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
@@ -902,7 +937,7 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 		When many devices was connected more than 15, getDeviceNumber gets 14 values.
 		CPS-MCS341 must wait 1 msec.
 	*/ 	
-	contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC );
+	contec_cps_micro_sleep( 1 * USEC_PER_MSEC );
 
 	return 0;
 
@@ -972,14 +1007,14 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
 	contec_mcs341_controller_setSystemInit();
 	// Wait ( 5sec )
-	contec_cps_micro_delay_sleep(5 * USEC_PER_SEC);
+	contec_cps_micro_sleep(5 * USEC_PER_SEC);
 	// RESET
 	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
 	contec_mcs341_controller_setSystemInit();
 
 	if( childType == CPS_CHILD_UNIT_INF_MC341B_40 ){
 		// fixed HL8528 Bubble Interrupt!
-		contec_cps_micro_delay_sleep( 2500 * USEC_PER_MSEC ); // 2.5 sec wait
+		contec_cps_micro_sleep( 2500 * USEC_PER_MSEC ); // 2.5 sec wait
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT;
 		contec_mcs341_controller_setSystemInit();
 
@@ -1223,16 +1258,16 @@ static unsigned char __contec_mcs341_device_rom_write_command( unsigned int dev,
 	switch ( (valw  & 0x80FE )){
 		case CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_ENABLE:
 		case CPS_DEVICE_COMMON_ROM_WRITE_DATA_READ:
-//			contec_cps_micro_delay_sleep(5); break;
-			contec_cps_micro_delay_sleep(25); break;
+//			contec_cps_micro_sleep(5); break;
+			contec_cps_micro_sleep(25); break;
 		case CPS_DEVICE_COMMON_ROM_WRITE_DATA_ERASE:
-			contec_cps_micro_delay_sleep( 5 * USEC_PER_SEC ); /* 5sec */ break;
+			contec_cps_micro_sleep( 5 * USEC_PER_SEC ); /* 5sec */ break;
 		case CPS_DEVICE_COMMON_ROM_WRITE_ADDR_INIT:
 		case CPS_DEVICE_COMMON_ROM_WRITE_ACCESS_DISABLE:
-//			contec_cps_micro_delay_sleep(1);break;
-			contec_cps_micro_delay_sleep(5);break;
+//			contec_cps_micro_sleep(1);break;
+			contec_cps_micro_sleep(5);break;
 		case CPS_DEVICE_COMMON_ROM_WRITE_DATA_WRITE:
-			contec_cps_micro_delay_sleep(200);break;
+			contec_cps_micro_sleep(200);break;
 	}
 
 	spin_lock_irqsave(&mcs341_eeprom_lock, flags);

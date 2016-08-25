@@ -24,19 +24,30 @@
 
 #include <linux/slab.h>
 
-#include "../../include/cps_common_io.h"
-#include "../../include/cps.h"
-#include "../../include/cps_ids.h"
-#include "../../include/cps_extfunc.h"
+#ifdef CONFIG_CONPROSYS_SDK
+ #include "../include/cps_common_io.h"
+ #include "../include/cps.h"
+ #include "../include/cps_ids.h"
+ #include "../include/cps_extfunc.h"
 
-#define DRV_VERSION	"0.9.8"
+ #include "../include/cpsdio.h"
+
+#else
+ #include "../../include/cps_common_io.h"
+ #include "../../include/cps.h"
+ #include "../../include/cps_ids.h"
+ #include "../../include/cps_extfunc.h"
+
+ #include "../../include/cpsdio.h"
+
+#endif
+
+#define DRV_VERSION	"0.9.9"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Digital I/O driver");
 MODULE_AUTHOR("syunsuke okamoto");
 MODULE_VERSION(DRV_VERSION);
-
-#include "../../include/cpsdio.h"
 
 #define CPSDIO_DRIVER_NAME "cpsdio"
 
@@ -72,6 +83,14 @@ typedef struct __cpsdio_driver_file{
 #else
 #define DEBUG_CPSDIO_OPEN(fmt...)	do { } while (0)
 #endif
+
+#if 0
+#define DEBUG_CPSDIO_IOCTL(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSDIO_IOCTL(fmt...)	do { } while (0)
+#endif
+
+
 /// @}
 ///
 static int cpsdio_max_devs;		///< device count
@@ -526,6 +545,10 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	struct cpsdio_ioctl_arg ioc;
 	memset( &ioc, 0 , sizeof(ioc) );
 
+	if ( dev == (PCPSDIO_DRV_FILE)NULL ){
+		DEBUG_CPSDIO_IOCTL(KERN_INFO"CPSDIO_DRV_FILE NULL POINTER.");
+		return -EFAULT;
+	}
 	switch( cmd ){
 
 		case IOCTL_CPSDIO_INP_PORT:
@@ -790,10 +813,16 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 		if( dev->ref ){
 			dev->ref++;
 			return 0;
+		}else{
+			return -EFAULT;
 		}
 	}
 
 	filp->private_data = (PCPSDIO_DRV_FILE)kmalloc( sizeof(CPSDIO_DRV_FILE) , GFP_KERNEL );
+	if( filp->private_data == (PCPSDIO_DRV_FILE)NULL ){
+		iRet = -ENOMEM;
+		goto NOT_MEM_PRIVATE_DATA;
+	}
 	dev = (PCPSDIO_DRV_FILE)filp->private_data;
 	inode->i_private = dev;
 
@@ -815,6 +844,7 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	do{
 		if( cps_dio_data[cnt].ProductNumber == -1 ) {
 			iRet = -EFAULT;
+			DEBUG_CPSDIO_OPEN(KERN_INFO"product_id:%x", product_id);
 			goto NOT_FOUND_DIO_PRODUCT;
 		}
 		if( cps_dio_data[cnt].ProductNumber == product_id ){
@@ -827,7 +857,7 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	ret = request_irq(AM335X_IRQ_NMI, cpsdio_isr_func, IRQF_SHARED, "cps-dio-intr", dev);
 
 	if( ret ){
-		printk(" request_irq failed.(%x) \n",ret);
+		DEBUG_CPSDIO_OPEN(" request_irq failed.(%x) \n",ret);
 	}
 
 	// spin_lock initialize
@@ -844,6 +874,11 @@ NOT_FOUND_DIO_PRODUCT:
 
 NOT_IOMEM_ALLOCATION:
 	kfree( dev );
+
+NOT_MEM_PRIVATE_DATA:
+ 
+	inode->i_private = (PCPSDIO_DRV_FILE)NULL;
+	filp->private_data = (PCPSDIO_DRV_FILE)NULL;
 
 	return iRet;
 }
@@ -867,7 +902,9 @@ static int cpsdio_close(struct inode * inode, struct file *filp ){
 
 	if ( inode->i_private != (PCPSDIO_DRV_FILE)NULL ){
 		dev = (PCPSDIO_DRV_FILE)inode->i_private;
-		dev->ref--;
+
+		if( dev->ref > 0 ) dev->ref--;
+
 		if( dev->ref == 0 ){
 
 			free_irq(AM335X_IRQ_NMI, dev);
@@ -880,8 +917,8 @@ static int cpsdio_close(struct inode * inode, struct file *filp ){
 			kfree( dev );
 			
 			inode->i_private = (PCPSDIO_DRV_FILE)NULL;
-			filp->private_data = (PCPSDIO_DRV_FILE)NULL;
 		}
+		filp->private_data = (PCPSDIO_DRV_FILE)NULL;
 	}
 	return 0;
 
@@ -895,7 +932,7 @@ static struct file_operations cpsdio_fops = {
 		.owner = THIS_MODULE,///< owner's name
 		.open = cpsdio_open,///< open
 		.release = cpsdio_close,///< close
-		.unlocked_ioctl = cpsdio_ioctl,/// I/O Control
+		.unlocked_ioctl = cpsdio_ioctl,///< I/O Control
 };
 
 /**

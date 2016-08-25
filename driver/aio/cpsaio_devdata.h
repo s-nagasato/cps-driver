@@ -31,19 +31,6 @@
 
 /*!
  @~English
- @name MEM STATUS (define)
- @~Japanese
- @name メモリステータス
-*/
-/// @{
-#define CPU_AIO_MEMSTATUS_DRE	0x0001	///< Data Read Enable bit
-#define CPU_AIO_MEMSTATUS_MDRE	0x0002	///< Multi Data Read Enable bit
-#define CPU_AIO_MEMSTATUS_DWE	0x0100 ///< Data Write Enable bit
-#define CPU_AIO_MEMSTATUS_MDWE	0x0200	///< Multi Data Write Enable bit
-/// @}
-
-/*!
- @~English
  @name CPS-AIO Extension (define)
  @~Japanese
  @name AIO 拡張用フラグ

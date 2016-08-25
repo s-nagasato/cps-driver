@@ -97,7 +97,8 @@ struct cpscnt_ioctl_arg{
 #define IOCTL_CPSCNT_GET_COUNT_LATCH			_IOR(CPSCNT_MAGIC, 29, struct cpscnt_ioctl_arg)
 
 #define IOCTL_CPSCNT_SET_TIMER_STOP			_IOW(CPSCNT_MAGIC, 30, struct cpscnt_ioctl_arg)
+#define IOCTL_CPSCNT_GET_ONESHOT_PULSE_WIDTH	_IOR(CPSCNT_MAGIC, 31, struct cpscnt_ioctl_arg)
 
-
+#define IOCTL_CPSCNT_GET_MODE				_IOW(CPSCNT_MAGIC, 32, struct cpscnt_ioctl_arg)
 
 /**************************************************/

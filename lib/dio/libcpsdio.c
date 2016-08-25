@@ -23,8 +23,14 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include "../../include/cpsdio.h"
-#include "../../include/libcpsdio.h"
+
+#include "cpsdio.h"
+
+#ifdef CONFIG_CONPROSYS_SDK
+ #include "../include/libcpsdio.h"
+#else
+ #include "libcpsdio.h"
+#endif
 
 
 typedef struct __contec_cps_dio_int_callback__

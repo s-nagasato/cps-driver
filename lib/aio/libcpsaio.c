@@ -31,8 +31,13 @@
 #include <signal.h>
 #include <math.h> //Ver.1.0.2
 #include <malloc.h> // Ver.1.0.2
-#include "../../include/cpsaio.h"
-#include "../../include/libcpsaio.h"
+#include "cpsaio.h"
+
+#ifdef CONFIG_CONPROSYS_SDK
+ #include "../include/libcpsaio.h"
+#else
+ #include "libcpsaio.h"
+#endif
 
 typedef struct __contec_cps_aio_int_callback__
 {
@@ -459,6 +464,15 @@ unsigned long ContecCpsAioStartAi( short Id )
 		if( count >= 1000 ) return 2;
 		count ++;
 	}while(!( arg.val & CPS_AIO_AI_STATUS_MOTION_END ) );
+
+	/* Multi Ai の場合、MDREフラグをチェックする  */
+	count = 0;
+	do{
+		usleep( 1 );
+		ioctl( Id, IOCTL_CPSAIO_GETMEMSTATUS , &arg);
+		if( count >= 1000 ) return 3;
+		count ++;
+	}while(!( arg.val & CPU_AIO_MEMSTATUS_MDRE ) );
 
 	return AIO_ERR_SUCCESS;
 }
@@ -1237,13 +1251,13 @@ unsigned long ContecCpsAioReadAiCalibrationData( short Id, unsigned char ch, uns
 unsigned long ContecCpsAioClearAiCalibrationData( short Id, int iClear )
 {
 
-	if( iClear & CPSAIO_AI_CALIBRATION_CLEAR_RAM	 ){
+	if( iClear & CPSAIO_AI_CALIBRATION_CLEAR_RAM ){
 		//FPGA all Clear
 		ContecCpsAioSetAiCalibrationData( Id, CPSAIO_AI_CALIBRATION_SELECT_OFFSET, 0, CPSAIO_AI_CALIBRATION_RANGE_PM10, 0 );
 		ContecCpsAioSetAiCalibrationData( Id, CPSAIO_AI_CALIBRATION_SELECT_GAIN, 0, CPSAIO_AI_CALIBRATION_RANGE_PM10, 0 );
 	}
 
-	if( iClear & CPSAIO_AI_CALIBRATION_CLEAR_ROM	 ){
+	if( iClear & CPSAIO_AI_CALIBRATION_CLEAR_ROM ){
 		//FPGA ROM CLEAR
 		ioctl( Id, IOCTL_CPSAIO_CLEAR_EEPROM, NULL);
 	}
@@ -1392,14 +1406,14 @@ unsigned long ContecCpsAioClearAoCalibrationData( short Id, int iClear )
 {
 	int cnt;
 
-	if( iClear & CPSAIO_AO_CALIBRATION_CLEAR_RAM	 ){
+	if( iClear & CPSAIO_AO_CALIBRATION_CLEAR_RAM ){
 		//FPGA all Clear
 		for( cnt = 0;cnt < 4 ;cnt ++ ){
 			ContecCpsAioSetAoCalibrationData( Id, CPSAIO_AO_CALIBRATION_SELECT_OFFSET, cnt, CPSAIO_AO_CALIBRATION_RANGE_P20MA, 0 );
 			ContecCpsAioSetAoCalibrationData( Id, CPSAIO_AO_CALIBRATION_SELECT_GAIN, cnt, CPSAIO_AO_CALIBRATION_RANGE_P20MA, 0 );
 		}
 	}
-	if( iClear & CPSAIO_AO_CALIBRATION_CLEAR_ROM	 ){
+	if( iClear & CPSAIO_AO_CALIBRATION_CLEAR_ROM ){
 		//FPGA ROM CLEAR
 		ioctl( Id, IOCTL_CPSAIO_CLEAR_EEPROM, NULL);
 	}

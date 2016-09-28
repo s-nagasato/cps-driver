@@ -1,4 +1,4 @@
-subdirs = system com dio aio ssi
+subdirs = system com dio aio ssi cnt
 MAKE=make --no-print-directory
 
 all:	

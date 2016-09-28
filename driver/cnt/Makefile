@@ -1,4 +1,4 @@
-obj-m := cpsaio.o
+obj-m := cpscnt.o
 
 PWD       := $(shell pwd)
 
@@ -17,16 +17,13 @@ ifeq "$(CPS_SDK_ROOTDIR)" ""
 #KERNELDIR ?= /lib/modules/$(shell uname -r)/build　##target kernel source path ( self build )
 KERNELDIR ?= /home/contec/workspace/sdk/CPS_SDK/kernel #target kernel source path ( static path )
 #KERNELDIR ?= ~/CPS_SDK/kernel #target kernel source path ( static path )
+#EXTRA_CFLAGS	+= -DCPSCNT_DIRECT_INOUT_MODE
 CPS_DRIVER_REELASE_DIR:=../release/
 else
 KERNELDIR ?= $(CPS_SDK_ROOTDIR)/kernel
 CPS_DRIVER_REELASE_DIR:=../../release/
 EXTRA_CFLAGS	+= -DCONFIG_CONPROSYS_SDK
 endif
-
-# double and float calc option (soft-float version)
-KBUILD_CFLAGS += -mfloat-abi=softfp
-KBUILD_AFLAGS += -mfloat-abi=softfp
 
 #cps-system extra symbol path
 EXTRA_SYMBOL	:= $(PWD)/../system/Module.symvers
@@ -38,7 +35,7 @@ modules_install:
 	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNELDIR) M=$(PWD) modules_install INSTALL_MOD_PATH=${CPS_SDK_INSTALL_FULLDIR}/$(TARGET_ROOTFS)
 
 release_copy:
-	cp -p ./cpsaio.ko $(CPS_DRIVER_REELASE_DIR)
+	cp -p ./cpscnt.ko $(CPS_DRIVER_REELASE_DIR)
 
 clean:
 	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions vtty Module.symvers modules.order 

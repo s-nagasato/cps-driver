@@ -101,4 +101,8 @@ struct cpscnt_ioctl_arg{
 
 #define IOCTL_CPSCNT_GET_MODE				_IOW(CPSCNT_MAGIC, 32, struct cpscnt_ioctl_arg)
 
+////////////////////// hasegawa
+#define IOCTL_CPSCNT_GET_Z_LOGIC			_IOW(CPSCNT_MAGIC, 33, struct cpscnt_ioctl_arg)
+////////////////////// hasegawa
+
 /**************************************************/

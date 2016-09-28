@@ -2,6 +2,7 @@
  *  Driver for CPS-AIO analog I/O
  *
  *  Copyright (C) 2015 syunsuke okamoto <okamoto@contec.jp>
+ *   authors : hasegawa
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -797,9 +798,6 @@ long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg 
 					spin_lock_irqsave(&dev->lock, flags);
 					CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG((unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned long) valw;
-					/* Write Clear AI_SET_INTERRUPT_FLAG */
-					valw = 0xFFFF;
-					CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG((unsigned long)dev->baseAddr , &valw );
 
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -818,15 +816,43 @@ long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg 
 					spin_lock_irqsave(&dev->lock, flags);
 					CPSAIO_COMMAND_ECU_AO_GET_INTERRUPT_FLAG((unsigned long)dev->baseAddr , &valw );
 					ioc.val = (unsigned long) valw;
-					/* Write Clear AI_SET_INTERRUPT_FLAG */
-					valw = 0xFFFF;
-					CPSAIO_COMMAND_ECU_AO_SET_INTERRUPT_FLAG((unsigned long)dev->baseAddr , &valw );
+
 					spin_unlock_irqrestore(&dev->lock, flags);
 
 					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 						return -EFAULT;
 					}
 					break;
+
+/////////////////////////////////// Ver.1.0.6 added hasegawa
+		case IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AI:
+					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					valw = (unsigned short) ioc.val;
+					CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG((unsigned long)dev->baseAddr , &valw );
+					spin_unlock_irqrestore(&dev->lock, flags);
+					break;
+
+		case IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AO:
+					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+
+					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					valw = (unsigned short) ioc.val;
+					CPSAIO_COMMAND_ECU_AO_SET_INTERRUPT_FLAG((unsigned long)dev->baseAddr , &valw );
+					spin_unlock_irqrestore(&dev->lock, flags);
+					break;
+/////////////////////////////////// Ver.1.0.6 added hasegawa
 		}
 		return 0;
 }

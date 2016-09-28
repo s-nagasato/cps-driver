@@ -465,6 +465,13 @@ unsigned long ContecCpsAioStartAi( short Id )
 		count ++;
 	}while(!( arg.val & CPS_AIO_AI_STATUS_MOTION_END ) );
 
+////////////////////// Ver.1.0.6 hasegawa
+	if( arg.val & CPS_AIO_AI_STATUS_MOTION_END ) {
+		arg.val = CPS_AIO_AI_STATUS_MOTION_END;
+		ioctl( Id, IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AI , &arg);
+	}
+////////////////////// Ver.1.0.6 hasegawa
+
 	/* Multi Ai の場合、MDREフラグをチェックする  */
 	count = 0;
 	do{

@@ -87,8 +87,10 @@ extern unsigned long ContecCpsCntStartCount( short Id, short ChNo[], short ChNum
 extern unsigned long ContecCpsCntStopCount( short Id, short ChNo[], short ChNum );
 extern unsigned long ContecCpsCntPreset( short Id, short ChNo[], short ChNum, unsigned long PresetData[] );
 extern unsigned long ContecCpsCntReadCount( short Id, short ChNo[], short ChNum, unsigned long CntDat[] );
-extern unsigned long ContecCpsCntReadStatus( short Id, short ChNo, short Status );
-
+////////////////////////// hasegawa
+extern unsigned long ContecCpsCntReadStatus( short Id, short ChNo, short *Status );
+//extern unsigned long ContecCpsCntReadStatus( short Id, short ChNo, short Status );
+////////////////////////// hasegawa
 
 /**** INTERRUPT Event Functions ****/
 extern unsigned long ContecCpsCntNotifyCountup( short Id, short BitNum, short Logic );

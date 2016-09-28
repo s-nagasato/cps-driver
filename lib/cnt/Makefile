@@ -2,12 +2,12 @@
 #LD = ld
 CC = arm-linux-gnueabi-gcc
 LD = arm-linux-gnueabi-ld
-TARGET=libCpsAio.so
-OBJ=libcpsaio.o
-SRC=libcpsaio.c
+TARGET=libCpsCnt.so
+OBJ=libcpscnt.o
+SRC=libcpscnt.c
 CFLAGS= -g -Wall
 
-VERSION =1.0.6
+VERSION =0.9.2
 
 # CPS_SDK_MACRO_CHECK ( without CONPROSYS SDK )
 ifneq "$(CPS_SDK_INSTALL_FULLDIR)" ""
@@ -27,10 +27,10 @@ endif
 all:$(OBJ) ${TARGET}
 
 $(OBJ):	
-	${CC} ${INCLUDE} ${LD_FLAGS} $(SRC) -c -fPIC -o $(OBJ) -lm
+	${CC} ${INCLUDE} ${LD_FLAGS} $(SRC) -c -fPIC -o $(OBJ)
 
 $(TARGET):
-	${CC} ${INCLUDE} ${LD_FLAGS}  -shared -O2 -Wl,-soname,$(TARGET) -o $(TARGET) $(OBJ) -lm
+	${CC} ${INCLUDE} ${LD_FLAGS}  -shared -O2 -Wl,-soname,$(TARGET) -o $(TARGET) $(OBJ)
 
 install:
 	cp -p $(TARGET) $(TARGET_ROOTFS)/usr/local/lib/$(TARGET).$(VERSION)
@@ -43,3 +43,5 @@ release_copy:
 
 clean:
 	rm -f $(OBJ) $(TARGET)
+
+

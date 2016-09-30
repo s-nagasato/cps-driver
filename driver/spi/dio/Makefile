@@ -1,4 +1,4 @@
-obj-m := 8250_cpscom.o
+obj-m := cpsdio_spi.o
 
 PWD       := $(shell pwd)
 
@@ -16,25 +16,22 @@ EXTRA_CFLAGS	:= -DDEBUG=0
 ifeq "$(CPS_SDK_ROOTDIR)" ""
 #KERNELDIR ?= /lib/modules/$(shell uname -r)/build　##target kernel source path ( self build )
 KERNELDIR ?= /home/contec/workspace/sdk/CPS_SDK/kernel #target kernel source path ( static path )
-CPS_DRIVER_REELASE_DIR:=../release/mcs341/
+#KERNELDIR ?= ~/CPS_SDK/kernel #target kernel source path ( static path )
+CPS_DRIVER_REELASE_DIR:=../../release/mc341/
 else
 KERNELDIR ?= $(CPS_SDK_ROOTDIR)/kernel
 CPS_DRIVER_REELASE_DIR:=../../release/
 EXTRA_CFLAGS	+= -DCONFIG_CONPROSYS_SDK
 endif
 
-#cps-system extra symbol path
-EXTRA_SYMBOL	:= $(PWD)/../system/Module.symvers
-
 all:
 	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNELDIR) KBUILD_EXTRA_SYMBOLS=$(EXTRA_SYMBOL) M=$(PWD) modules
-#	$(MAKE) -C $(KERNELDIR) KBUILD_EXTRA_SYMBOLS=$(EXTRA_SYMBOL) M=$(PWD) modules
 
 modules_install:
 	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNELDIR) M=$(PWD) modules_install INSTALL_MOD_PATH=${CPS_SDK_INSTALL_FULLDIR}/$(TARGET_ROOTFS)
 
 release_copy:
-	cp -p ./8250_cpscom.ko $(CPS_DRIVER_REELASE_DIR)
+	cp -p ./cpsdio_spi.ko $(CPS_DRIVER_REELASE_DIR)
 
 clean:
-	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions modules.order Module.symvers
+	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions vtty Module.symvers modules.order 

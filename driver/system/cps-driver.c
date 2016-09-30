@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.0.10
+ * Version 1.0.12
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.0.11"
+#define DRV_VERSION	"1.0.12"
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("CONTEC CONPROSYS BASE Driver");
@@ -968,6 +968,7 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 		break;
 	case CPS_CHILD_UNIT_INF_MC341B_10:	// CPS-MCS341-DS2
 	case CPS_CHILD_UNIT_INF_MC341B_20:	// CPS-MCS341Q-DS1
+	case CPS_CHILD_UNIT_INF_MC341B_50:	// CPS-MCS341Q-DS1 (LoRa)
 		contec_mcs341_controller_setPinMode(
 			CPS_MCS341_SETPINMODE_3G3_INPUT,
 			CPS_MCS341_SETPINMODE_3G4_INPUT,
@@ -1012,12 +1013,15 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
 	contec_mcs341_controller_setSystemInit();
 
-	if( childType == CPS_CHILD_UNIT_INF_MC341B_40 ){
+
+	// GPIO(0_23) High Settings
+	switch( childType ){
+	case CPS_CHILD_UNIT_INF_MC341B_40:
 		// fixed HL8528 Bubble Interrupt!
 		contec_cps_micro_sleep( 2500 * USEC_PER_MSEC ); // 2.5 sec wait
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT;
 		contec_mcs341_controller_setSystemInit();
-
+		break;
 	}
 
 	return 0;
@@ -1658,7 +1662,6 @@ static unsigned char contec_mcs341_device_serial_channel_get( unsigned long base
 EXPORT_SYMBOL_GPL(contec_mcs341_device_serial_channel_get);
 
 
-
 /**
  @~English
  @name Initialize and Exit Functions
@@ -1711,6 +1714,7 @@ static int contec_mcs341_controller_init(void)
 			gpio_free(CPS_CONTROLLER_MCS341_RESET_PIN);
 			gpio_request(CPS_CONTROLLER_MCS341_RESET_PIN, "cps_mcs341_reset");
 			gpio_direction_input(CPS_CONTROLLER_MCS341_RESET_PIN);
+			gpio_export(CPS_CONTROLLER_MCS341_RESET_PIN, true ) ; //2016.09.29  Ver.1.0.12
 
 			gpio_free(CPS_CONTROLLER_MCS341_RESET_POUT);
 			gpio_request(CPS_CONTROLLER_MCS341_RESET_POUT, "cps_mcs341_reset_out");

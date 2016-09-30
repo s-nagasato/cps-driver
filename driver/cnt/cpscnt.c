@@ -819,7 +819,14 @@ static long cpscnt_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 
 		for( cnt = 0; cnt < size; cnt ++ ){
 			DEBUG_CPSCNT_COMMAND(KERN_INFO"   +%d: %x hex", cnt, dat[cnt]);
+			// DataWrite UnLock
+			cps_common_outw( BaseAddr + OFFSET_CNT_COMMAND_DATALOCK	 , CPS_CNT_DATA_UNLOCK );
+
 			cps_common_outb( BaseAddr + OFFSET_CNT_ADDRESS_DATA  , dat[cnt] );
+
+			// DataWrite Lock
+			cps_common_outw( BaseAddr + OFFSET_CNT_COMMAND_DATALOCK	 , CPS_CNT_DATA_LOCK );
+
 		}
 		break;
 	}

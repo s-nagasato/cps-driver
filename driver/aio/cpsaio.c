@@ -41,7 +41,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.0.6"
+#define DRV_VERSION	"1.0.7"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -420,6 +420,9 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 			break;
 		}
 
+		// DataWrite UnLock
+		cps_common_outw( BaseAddr + OFFSET_COMMAND_DATALOCK_AIO	 , CPS_AIO_DATA_UNLOCK );
+
 		cps_common_outw( dat_addr_l , data_l );
 		DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%04x\n",dat_addr_l, data_l);
 
@@ -427,6 +430,11 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 			cps_common_outw( dat_addr_u , data_u );
 			DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%04x\n", dat_addr_u, data_u);
 		}
+
+		// DataWrite Lock
+		cps_common_outw( BaseAddr + OFFSET_COMMAND_DATALOCK_AIO	 , CPS_AIO_DATA_LOCK );
+
+
 		break;
 	}
 	return 0;

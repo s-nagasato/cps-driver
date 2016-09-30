@@ -14,6 +14,7 @@
 #define	OFFSET_AISTATUS_CPS_AIO	0x4	///< Analog input status register
 #define	OFFSET_AODATA_CPS_AIO 0x8	///< Analog output data register
 #define	OFFSET_AOSTATUS_CPS_AIO	0xC	///< Analog output status register
+#define	OFFSET_COMMAND_DATALOCK_AIO	0x18	///< Device Data Lock register (Write/Read Lock) Ver.1.0.7 added.
 #define	OFFSET_MEMSTATUS_CPS_AIO	0x1C	///< Memory status register
 #define	OFFSET_EXT_COMMAND_LOWER_CPS_AIO 0x20	///< Extension command address-lower register.
 #define	OFFSET_EXT_COMMAND_UPPER_CPS_AIO 0x22	///< Extension command address-upper register.
@@ -27,6 +28,19 @@
 #define	OFFSET_ECU_DATA_LOWER_CPS_AIO 0x2C	///< ECU data-lower register.
 #define	OFFSET_ECU_DATA_UPPER_CPS_AIO 0x2E	///< ECU data-upper register.
 
+/// @}
+
+/*!
+ @~English
+ @name CPS-AIO Write Lock /UnLock
+ @brief Version.1.0.7 Added.
+ @~Japanese
+ @name AIO 書き込みロック / アンロック
+ @brief Version.1.0.7 実装
+*/
+/// @{
+#define CPS_AIO_DATA_LOCK			0x0			///<	データロック
+#define CPS_AIO_DATA_UNLOCK			0xAA55		///<	データアンロック
 /// @}
 
 /*!

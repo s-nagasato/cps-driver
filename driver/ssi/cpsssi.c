@@ -270,6 +270,7 @@ void cpsssi_clear_fpga_extension_reg(unsigned int dev, unsigned int cate, unsign
 
 /**
 	@~English
+	@brief Get SSI status function.
 	@param BaseAddr : base address
 	@param wStatus : status
 	@return true : 0
@@ -440,7 +441,7 @@ static long cpsssi_command_4p( unsigned long BaseAddr, unsigned char isReadWrite
 
 /**
 	@~English
-	@param CPS-SSI-4P set sense resistance.
+	@brief CPS-SSI-4P set sense resistance.
 	@param BaseAddr : base address
 	@param dwVal : value (sense resistance )
 	@return true : 0
@@ -464,7 +465,7 @@ void cpsssi_command_4p_set_sense_resistance( unsigned long BaseAddr, unsigned lo
 
 /**
 	@~English
-	@param CPS-SSI-4P get sense resistance.
+	@brief CPS-SSI-4P get sense resistance.
 	@param BaseAddr : base address
 	@param dwVal : value (sense resistance )
 	@return true : 0
@@ -491,7 +492,7 @@ void cpsssi_command_4p_get_sense_resistance( unsigned long BaseAddr, unsigned lo
 
 /**
 	@~English
-	@param CPS-SSI-4P set channel's parameter.
+	@brief CPS-SSI-4P set channel's parameter.
 	@param BaseAddr : base address
 	@param ch : channel
 	@param dwVal : channel's parameter
@@ -523,7 +524,7 @@ void cpsssi_command_4p_set_channel( unsigned long BaseAddr, unsigned int ch , un
 
 /**
 	@~English
-	@param CPS-SSI-4P get channel's parameter.
+	@brief CPS-SSI-4P get channel's parameter.
 	@param BaseAddr : base address
 	@param ch : channel
 	@param dwVal : channel's parameter
@@ -560,7 +561,7 @@ void cpsssi_command_4p_get_channel( unsigned long BaseAddr, unsigned int ch , un
 
 /**
 	@~English
-	@param CPS-SSI-4P set start.(with channel)
+	@brief CPS-SSI-4P set start.(with channel)
 	@param BaseAddr : base address
 	@param ch : channel
 	@return true : 0
@@ -593,7 +594,7 @@ void cpsssi_command_4p_set_start( unsigned long BaseAddr, unsigned int ch )
 
 /**
 	@~English
-	@param CPS-SSI-4P get temprature.(with channel)
+	@brief CPS-SSI-4P get temprature.(with channel)
 	@param BaseAddr : base address
 	@param ch : channel
 	@param dwVal : temprature value
@@ -630,7 +631,7 @@ void cpsssi_command_4p_get_temprature( unsigned long BaseAddr, unsigned int ch ,
 /***** allocate/free list_head *******************************/
 /**
 	@~English
-	@param CPS-SSI-4P allocate offset list.
+	@brief CPS-SSI-4P allocate offset list.
 	@param node : device node
 	@param max_ch : maximum channel
 	@return true : 0
@@ -663,7 +664,7 @@ void cpsssi_4p_allocate_offset_list( unsigned int node, unsigned int max_ch ){
 
 /**
 	@~English
-	@param CPS-SSI-4P free offset list.
+	@brief CPS-SSI-4P free offset list.
 	@param node : device node
 	@return true : 0
 	@~Japanese
@@ -685,7 +686,7 @@ void cpsssi_4p_free_offset_list_of_device( unsigned int node ){
 
 /**
 	@~English
-	@param CPS-SSI-4P set offset by channel.
+	@brief CPS-SSI-4P set offset by channel.
 	@param node : device node
 	@param ch : channel
 	@param pData : offset data list .
@@ -721,7 +722,7 @@ void cpsssi_4p_set_channeldata_offset( unsigned int node, unsigned int ch ,CPSSS
 
 /**
 	@~English
-	@param CPS-SSI-4P get offset by channel.
+	@brief CPS-SSI-4P get offset by channel.
 	@param node : device node
 	@param ch : channel
 	@param pData : offset data list .
@@ -759,7 +760,7 @@ void cpsssi_4p_get_channeldata_offset( unsigned int node, unsigned int ch ,CPSSS
 
 /**
 	@~English
-	@param CPS-SSI-4P set basic data of channel data list.
+	@brief CPS-SSI-4P set basic data of channel data list.
 	@param ch : channel
 	@param pData : offset data list .
 	@param dwVal : value ( wire , standard )
@@ -780,7 +781,7 @@ void cpsssi_4p_set_channeldata_basic( unsigned int ch , CPSSSI_4P_CHANNEL_DATA p
 
 /**
 	@~English
-	@param CPS-SSI-4P set last status of channel data list.
+	@brief CPS-SSI-4P set last status of channel data list.
 	@param ch : channel
 	@param pData : offset data list .
 	@param dwVal : value
@@ -798,15 +799,15 @@ void cpsssi_4p_set_channeldata_lastStatus( unsigned int ch ,CPSSSI_4P_CHANNEL_DA
 
 /**
 	@~English
-	@param CPS-SSI-4P get last status of channel data list.
+	@brief CPS-SSI-4P get last status of channel data list.
 	@param ch : channel
 	@param pData : offset data list .
-	@param dwVal : value
+	@return lastStatus
 	@~Japanese
 	@brief CPS-SSI-4Pの最終ステータスをチャネル・リストから取得する関数
 	@param ch : チャネル
 	@param pData : チャネル・オフセット・リスト
-	@param dwVal : 値
+	@return lastStatus
 **/
 unsigned long cpsssi_4p_get_channeldata_lastStatus( unsigned int ch ,CPSSSI_4P_CHANNEL_DATA pData[] ){
 
@@ -817,7 +818,7 @@ unsigned long cpsssi_4p_get_channeldata_lastStatus( unsigned int ch ,CPSSSI_4P_C
 /* Offset add or sub */
 /**
 	@~English
-	@param CPS-SSI-4P add offset value.
+	@brief CPS-SSI-4P add offset value.
 	@param node : device node
 	@param ch : channel
 	@param pData : offset data list .

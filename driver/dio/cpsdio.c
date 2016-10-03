@@ -460,7 +460,7 @@ static long cpsdio_get_dio_portnum( int node, unsigned char type, unsigned short
 	@~Japanese
 	@brief デジタル機器のデバイス名を取得する関数
 	@param node : ノード
-	@param wNum : デバイス名
+	@param devName : デバイス名
 	@return 成功 : 0
 **/
 static long cpsdio_get_dio_devname( int node, unsigned char devName[] )

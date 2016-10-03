@@ -190,10 +190,8 @@ struct cpsaio_direct_command_arg{
 #define IOCTL_CPSAIO_CLEAR_EEPROM _IO(CPSAIO_MAGIC, 39)
 #define IOCTL_CPSAIO_GETMAXCHANNEL _IOR(CPSAIO_MAGIC, 40, struct cpsaio_ioctl_arg)
 
-/////////////////////////////// hasegawa
 #define IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AI _IOR(CPSAIO_MAGIC, 41, struct cpsaio_ioctl_arg)
 #define IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AO _IOR(CPSAIO_MAGIC, 42, struct cpsaio_ioctl_arg)
-/////////////////////////////// hasegawa
 
 
 #define IOCTL_CPSAIO_DIRECT_OUTPUT	_IOW(CPSAIO_MAGIC, 64, struct cpsaio_direct_arg)

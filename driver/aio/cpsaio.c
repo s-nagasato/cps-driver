@@ -2,7 +2,6 @@
  *  Driver for CPS-AIO analog I/O
  *
  *  Copyright (C) 2015 syunsuke okamoto <okamoto@contec.jp>
- *   authors : hasegawa
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -832,7 +831,7 @@ long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg 
 					}
 					break;
 
-/////////////////////////////////// Ver.1.0.6 added hasegawa
+/////////////////////////////////// Ver.1.0.6 added
 		case IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AI:
 					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 						return -EFAULT;
@@ -860,7 +859,7 @@ long cpsaio_ioctl_ecu(PCPSAIO_DRV_FILE dev, unsigned int cmd, unsigned long arg 
 					CPSAIO_COMMAND_ECU_AO_SET_INTERRUPT_FLAG((unsigned long)dev->baseAddr , &valw );
 					spin_unlock_irqrestore(&dev->lock, flags);
 					break;
-/////////////////////////////////// Ver.1.0.6 added hasegawa
+/////////////////////////////////// Ver.1.0.6 added
 		}
 		return 0;
 }

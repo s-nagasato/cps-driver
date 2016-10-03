@@ -434,9 +434,9 @@ unsigned long ContecCpsCntGetZLogic( short Id, short ChNo, short *Logic )
 
 	arg.ch = ChNo;
 
-////////////////////// Ver.0.9.2 hasegawa
+////////////////////// Ver.0.9.2
 	ioctl( Id, IOCTL_CPSCNT_GET_Z_LOGIC, &arg );
-////////////////////// Ver.0.9.2 hasegawa
+////////////////////// Ver.0.9.2
 
 	*Logic = arg.val;
 
@@ -614,13 +614,13 @@ unsigned long ContecCpsCntGetPulseWidth( short Id, short ChNo, short *PlsWidth )
 	@brief CNT Library start count.
 	@param Id : Device ID
 	@param ChNo : Start of Channels ( Array )
-	@param ChNum :Channel Number
+	@param chNum :Channel Number
 	@return Success: CNT_ERR_SUCCESS
 	@~Japanese
 	@brief 指定されたチャネルのカウントをスタートします。
 	@param Id : デバイスID
 	@param ChNo :　チャネル配列
-	@param ChNum :　チャネル数
+	@param chNum :　チャネル数
 	@return 成功: CNT_ERR_SUCCESS
 **/
 unsigned long ContecCpsCntStartCount( short Id, short ChNo[], short chNum )
@@ -645,13 +645,13 @@ unsigned long ContecCpsCntStartCount( short Id, short ChNo[], short chNum )
 	@brief CNT Library stop count.
 	@param Id : Device ID
 	@param ChNo : Stop of Channels ( Array )
-	@param ChNum : Channel Number
+	@param chNum : Channel Number
 	@return Success: CNT_ERR_SUCCESS
 	@~Japanese
 	@brief 指定されたチャネルのカウントを停止します
 	@param Id : デバイスID
 	@param ChNo :　チャネル配列
-	@param ChNum :　チャネル数
+	@param chNum :　チャネル数
 	@return 成功: CNT_ERR_SUCCESS
 **/
 unsigned long ContecCpsCntStopCount( short Id, short ChNo[], short chNum )
@@ -676,14 +676,14 @@ unsigned long ContecCpsCntStopCount( short Id, short ChNo[], short chNum )
 	@brief CNT Library preset count.
 	@param Id : Device ID
 	@param ChNo : Preset of Channels ( Array )
-	@param ChNum : Chennel Number
+	@param chNum : Chennel Number
 	@param PresetData : Preset Data ( Array )
 	@return Success: CNT_ERR_SUCCESS
 	@~Japanese
 	@brief 指定したチャネルにデータをプリセットします
 	@param Id : デバイスID
 	@param ChNo :　チャネル配列
-	@param ChNum :チャネル数
+	@param chNum :チャネル数
 	@param PresetData : プリセットデータ配列
 	@return 成功: CNT_ERR_SUCCESS
 **/
@@ -709,14 +709,14 @@ unsigned long ContecCpsCntPreset( short Id, short ChNo[], short chNum, unsigned 
 	@brief CNT Library read count.
 	@param Id : Device ID
 	@param ChNo : Read of Channels ( Array )
-	@param ChNum :　Channel Number
+	@param chNum :　Channel Number
 	@param CntDat : Data of channels ( Array )
 	@return Success: CNT_ERR_SUCCESS
 	@~Japanese
-	@brief 指定されたポートのデータをビット単位で取得します
+	@brief カウンタデバイスのカウント値を読み出します。
 	@param Id : デバイスID
 	@param ChNo : リードするチャネル配列
-	@param ChNum :チャネル数
+	@param chNum :チャネル数
 	@param CntDat : データ 配列
 	@return 成功: CNT_ERR_SUCCESS
 **/
@@ -743,7 +743,21 @@ unsigned long ContecCpsCntReadCount( short Id, short ChNo[], short chNum, unsign
 
 	return CNT_ERR_SUCCESS;
 }
-////////////////////////////////////////// Ver.0.9.2 hasegawa
+////////////////////////////////////////// Ver.0.9.2
+/**
+	@~English
+	@brief CNT Library read status.
+	@param Id : Device ID
+	@param ChNo : Channels
+	@param Status :　Status
+	@return Success: CNT_ERR_SUCCESS
+	@~Japanese
+	@brief カウンタデバイスのステータスを読み出します。
+	@param Id : デバイスID
+	@param ChNo : チャネル番号
+	@param Status : ステータス
+	@return 成功: CNT_ERR_SUCCESS
+**/
 unsigned long ContecCpsCntReadStatus( short Id, short ChNo, short *Status )
 {
 	struct cpscnt_ioctl_arg	arg;
@@ -755,5 +769,5 @@ unsigned long ContecCpsCntReadStatus( short Id, short ChNo, short *Status )
 
 	return CNT_ERR_SUCCESS;
 }
-////////////////////////////////////////// Ver.0.9.2 hasegawa
+////////////////////////////////////////// Ver.0.9.2
 

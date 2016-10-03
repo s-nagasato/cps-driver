@@ -2,7 +2,6 @@
  *  Driver for CPS-CNT Counter I/O
  *
  *  Copyright (C) 2016 syunsuke okamoto <okamoto@contec.jp>
- *  authors : hasegawa
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -192,7 +191,7 @@ static const CPSCNT_DEV_DATA cps_cnt_data[] = {
 /***** allocate/free list_head *******************************/
 /**
 	@~English
-	@param CPS-CNT-32XXI allocate offset list.
+	@brief CPS-CNT-32XXI allocate offset list.
 	@param node : device node
 	@param max_ch : maximum channel
 	@return true : 0
@@ -253,7 +252,7 @@ void cpscnt_32xxI_allocate_list( unsigned int node, unsigned int max_ch ){
 
 /**
 	@~English
-	@param CPS-CNT-3202I free software data list.
+	@brief CPS-CNT-3202I free software data list.
 	@param node : device node
 	@return true : 0
 	@~Japanese
@@ -280,15 +279,13 @@ void cpscnt_32xxI_free_list_of_device( unsigned int node ){
 
 /**
 	@~English
-	@param CPS-CNT-3202I get software data list.
+	@brief CPS-CNT-3202I get software data list.
 	@param node : device node
-	@param get_data : device software data pointer
-	@return true : 0
+	@return true : structure CPSCNT_32XXI_DATA pointer, false : NULL pointer
 	@~Japanese
 	@brief CPS-CNT-3202Iのソフトウェアデータリストを取得する関数
 	@param node : デバイスノード
-	@param get_data : device software data pointer
-	@return 成功 : 0
+	@return 成功 : CPSCNT_32XXI_DATA 構造体ポインタ , 失敗: NULL
 **/
 PCPSCNT_32XXI_DATA cpscnt_32xxI_get_list_of_device( unsigned int node ){
 
@@ -314,15 +311,13 @@ PCPSCNT_32XXI_DATA cpscnt_32xxI_get_list_of_device( unsigned int node ){
 
 /**
 	@~English
-	@param CPS-CNT-3202I set operation mode by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set operation mode by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのオペレーション・モードを設定する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : モード
@@ -330,25 +325,23 @@ PCPSCNT_32XXI_DATA cpscnt_32xxI_get_list_of_device( unsigned int node ){
 **/
 void cpscnt_32xxi_set_op_mode( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigned char valb )
 {
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 	pData->data[ch].mode.Bit.sel0 = ( valb & 0x01 )  ? 1  : 0;
 	pData->data[ch].mode.Bit.sel1 = ( valb & 0x02 )  ? 1  : 0;
 	pData->data[ch].mode.Bit.sel2 = ( valb & 0x04 )  ? 1  : 0;
 	pData->data[ch].mode.Bit.ub   = ( valb & 0x10 )  ? 1  : 0;
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 }
 
 /**
 	@~English
-	@param CPS-CNT-3202I set operation mode by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set operation mode by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのオペレーション・モードを取得する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : モード
@@ -361,15 +354,13 @@ void cpscnt_32xxi_get_op_mode( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsign
 
 /**
 	@~English
-	@param CPS-CNT-3202I set operation mode by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set operation mode by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのオペレーション・モードを設定する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : モードリセット
@@ -377,22 +368,20 @@ void cpscnt_32xxi_get_op_mode( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsign
 **/
 void cpscnt_32xxi_set_reset( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigned char valb )
 {
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 	pData->data[ch].mode.Bit.reset = (valb & 0x01)  ? 1  : 0;
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 }
 
 /**
 	@~English
-	@param CPS-CNT-3202I set operation mode by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set operation mode by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのオペレーション・モードを取得する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : モード・リセット
@@ -400,23 +389,21 @@ void cpscnt_32xxi_set_reset( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigned
 **/
 void cpscnt_32xxi_get_reset( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigned char *valb )
 {
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 	*valb = pData->data[ch].mode.Bit.reset  ? 1  : 0;
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 }
 
 
 /**
 	@~English
-	@param CPS-CNT-3202I set z logic by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set z logic by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202IのZ相の論理を設定する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : Z相論理
@@ -424,22 +411,20 @@ void cpscnt_32xxi_get_reset( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigned
 **/
 void cpscnt_32xxi_set_z_logic( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigned char valb )
 {
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 	pData->data[ch].mode.Bit.zsel = ( valb & 0x01 )  ? 1  : 0;
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 }
 
 /**
 	@~English
-	@param CPS-CNT-3202I set z logic by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set z logic by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202IのZ相の論理を取得する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : Z相論理
@@ -447,22 +432,20 @@ void cpscnt_32xxi_set_z_logic( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsign
 **/
 void cpscnt_32xxi_get_z_logic( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigned char *valb )
 {
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 	*valb = ( pData->data[ch].mode.Bit.zsel )  ? 1  : 0;
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 }
 
 /**
 	@~English
-	@param CPS-CNT-3202I set z logic by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set z logic by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iの入力選択を設定する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : 入力選択
@@ -475,15 +458,13 @@ void cpscnt_32xxi_set_selectsignal( unsigned int ch ,PCPSCNT_32XXI_DATA pData, u
 
 /**
 	@~English
-	@param CPS-CNT-3202I set z logic by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set z logic by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iの選択入力を取得する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : 入力選択
@@ -496,15 +477,13 @@ void cpscnt_32xxi_get_selectsignal( unsigned int ch ,PCPSCNT_32XXI_DATA pData, u
 
 /**
 	@~English
-	@param CPS-CNT-3202I set count direction by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set count direction by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのカウント方向を設定する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : カウント方向
@@ -512,22 +491,20 @@ void cpscnt_32xxi_get_selectsignal( unsigned int ch ,PCPSCNT_32XXI_DATA pData, u
 **/
 void cpscnt_32xxi_set_count_direction( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigned char valb )
 {
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 	pData->data[ch].mode.Bit.dir = ( valb & 0x01 )  ? 1  : 0;
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 }
 
 /**
 	@~English
-	@param CPS-CNT-3202I set count direction by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set count direction by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのカウント方向を取得する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : カウント方向
@@ -535,22 +512,20 @@ void cpscnt_32xxi_set_count_direction( unsigned int ch ,PCPSCNT_32XXI_DATA pData
 **/
 void cpscnt_32xxi_get_count_direction( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigned char *valb )
 {
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 	*valb = ( pData->data[ch].mode.Bit.dir )  ? 1  : 0;
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 }
 
 /**
 	@~English
-	@param CPS-CNT-3202I set z mode by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set z mode by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202IのZモードを設定する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : Zモード
@@ -564,15 +539,13 @@ void cpscnt_32xxi_set_z_mode( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigne
 
 /**
 	@~English
-	@param CPS-CNT-3202I get z mode by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I get z mode by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202IのZモードを取得する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : Zモード
@@ -585,15 +558,13 @@ void cpscnt_32xxi_get_z_mode( unsigned int ch ,PCPSCNT_32XXI_DATA pData, unsigne
 
 /**
 	@~English
-	@param CPS-CNT-3202I set digital filter by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I set digital filter by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのデジタルフィルタを設定する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : デジタルフィルタ
@@ -606,15 +577,13 @@ void cpscnt_32xxi_set_digital_filter( unsigned int ch ,PCPSCNT_32XXI_DATA pData,
 
 /**
 	@~English
-	@param CPS-CNT-3202I get digital filter by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I get digital filter by channel.
 	@param ch : channel
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのデジタルフィルタを取得する関数
-	@param node : デバイスノード
 	@param ch : チャネル
 	@param pData : チャネル・データ
 	@param valb : デジタルフィルタ
@@ -627,14 +596,12 @@ void cpscnt_32xxi_get_digital_filter( unsigned int ch ,PCPSCNT_32XXI_DATA pData,
 
 /**
 	@~English
-	@param CPS-CNT-3202I set pulse width.
-	@param node : device node
+	@brief CPS-CNT-3202I set pulse width.
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのワンショット・パルス幅を設定する関数
-	@param node : デバイスノード
 	@param pData : チャネル・データ
 	@param valb : ワンショット・パルス幅
 	@return 成功 : 0
@@ -646,14 +613,12 @@ void cpscnt_32xxi_set_pulse_width( PCPSCNT_32XXI_DATA pData, unsigned char valb 
 
 /**
 	@~English
-	@param CPS-CNT-3202I get pulse width.
-	@param node : device node
+	@brief CPS-CNT-3202I get pulse width.
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのワンショット・パルス幅を取得する関数
-	@param node : デバイスノード
 	@param pData : チャネル・データ
 	@param valb : ワンショット・パルス幅
 	@return 成功 : 0
@@ -666,14 +631,12 @@ void cpscnt_32xxi_get_pulse_width( PCPSCNT_32XXI_DATA pData, unsigned char *valb
 
 /**
 	@~English
-	@param CPS-CNT-3202I set pulse width.
-	@param node : device node
+	@brief CPS-CNT-3202I set pulse width.
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのワンショット・パルス幅を設定する関数
-	@param node : デバイスノード
 	@param pData : チャネル・データ
 	@param valb : カウントラッチ
 	@return 成功 : 0
@@ -685,14 +648,12 @@ void cpscnt_32xxi_set_count_latch( PCPSCNT_32XXI_DATA pData, unsigned char valb 
 
 /**
 	@~English
-	@param CPS-CNT-3202I get pulse width.
-	@param node : device node
+	@brief CPS-CNT-3202I get pulse width.
 	@param pData : data list .
 	@param valb : value
 	@return true : 0
 	@~Japanese
 	@brief CPS-CNT-3202Iのワンショット・パルス幅を取得する関数
-	@param node : デバイスノード
 	@param pData : チャネル・データ
 	@param valb : カウントラッチ
 	@return 成功 : 0
@@ -710,7 +671,7 @@ void cpscnt_32xxi_get_count_latch( PCPSCNT_32XXI_DATA pData, unsigned char *valb
 	@brief CNT unsigned long to unsigned char.
 	@param data : unsigned long Data
 	@param retDat : unsigned char Array
-	@par internal funciton
+	@par This function is internal function.
 	@~Japanese
 	@brief CNT 変換関数( unsigned long から unsigned char配列 )
 	@param data : unsigned long型 データ
@@ -731,7 +692,7 @@ void __cpscnt_ulong2uchar(unsigned long data, unsigned char retDat[] )
 	@brief CNT unsigned char to unsigned long.
 	@param data : unsigned long Data
 	@param retDat : unsigned char Array
-	@par internal funciton
+	@par This function is internal function.
 	@~Japanese
 	@brief CNT 変換関数( unsigned char配列 から unsigned long )
 	@param data : unsigned char型 データ配列
@@ -997,17 +958,15 @@ static long cpscnt_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 
 /**
 	@~English
-	@param CPS-CNT-3202I start by channel.
-	@param node : device node
+	@brief CPS-CNT-3202I start by channel.
+	@param BaseAddr : base address
+	@param enableCh : Enable Channel Number
 	@param pData : data list .
-	@param valb : value
-	@return true : 0
 	@~Japanese
-	@brief CPS-CNT-3202Iのワンショット・パルス幅を設定する関数
-	@param node : デバイスノード
+	@brief CPS-CNT-3202Iのチャネル毎のスタートを設定する関数
+	@param BaseAddr : ベースアドレス
+	@param enableCh :　有効チャネル
 	@param pData : チャネル・データ
-	@param valb : カウントラッチ
-	@return 成功 : 0
 **/
 void __cpscnt_32xxi_start_by_channel( unsigned long BaseAddr, int enableCh, PCPSCNT_32XXI_DATA pData )
 {
@@ -1050,17 +1009,15 @@ void __cpscnt_32xxi_start_by_channel( unsigned long BaseAddr, int enableCh, PCPS
 
 /**
 	@~English
-	@param CPS-CNT-3202I get offset by channel.
-	@param node : device node
-	@param ch : channel
+	@brief CPS-CNT-3202I stop by channel.
+	@param BaseAddr : base address
+	@param enableCh : Enable Channel Number
 	@param pData : data list .
-	@return true : 0
 	@~Japanese
-	@brief CPS-CNT-3202Iのデータを取得する関数
-	@param node : デバイスノード
-	@param ch : チャネル
-	@param pData : チャネル・リスト
-	@return 成功 : 0
+	@brief CPS-CNT-3202Iのチャネル毎のストップを設定する関数
+	@param BaseAddr : ベースアドレス
+	@param enableCh :　有効チャネル
+	@param pData : チャネル・データ
 **/
 void __cpscnt_32xxi_stop_by_channel( unsigned long BaseAddr, unsigned int enableCh ,PCPSCNT_32XXI_DATA pData )
 {
@@ -1085,12 +1042,12 @@ void __cpscnt_32xxi_stop_by_channel( unsigned long BaseAddr, unsigned int enable
 	@brief This function get Device Name with Counter I/O device.
 	@param node : device node
 	@param devName : Device Name
-	@return true : 0
+	@return true : 0, failed : otherwise
 	@~Japanese
 	@brief カウンタ機器のデバイス名を取得する関数
 	@param node : ノード
-	@param wNum : デバイス名
-	@return 成功 : 0
+	@param devName : デバイス名
+	@return 成功 : 0, 失敗 : 1
 **/
 static long cpscnt_get_cnt_devname( int node, unsigned char devName[] )
 {
@@ -1257,9 +1214,9 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					cpscnt_32xxi_set_z_mode( ioc.ch, pData, valb );
 
 #ifdef CPSCNT_DIRECT_INOUT_MODE
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 					CPSCNT_COMMAND_SET_Z_PHASE( (unsigned long)dev->baseAddr, ioc.ch, &pData->data[ioc.ch].zPhase);
-/////////////////// Ver.0.9.2 hasegawa
+/////////////////// Ver.0.9.2
 #endif
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1275,9 +1232,9 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}					
 					spin_lock_irqsave(&dev->lock, flags);
 					valdw = ioc.val;
-//////////////////////// Ver.0.9.2 hasegawa
+//////////////////////// Ver.0.9.2
 					pData->data[ioc.ch].compare = valdw;
-//////////////////////// Ver.0.9.2 hasegawa
+//////////////////////// Ver.0.9.2
 
 					CPSCNT_COMMAND_SET_COMPARE_REG( (unsigned long)dev->baseAddr , ioc.ch, &valdw );
 					spin_unlock_irqrestore(&dev->lock, flags);
@@ -1456,9 +1413,9 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					valb = ioc.val;
 					cpscnt_32xxi_set_pulse_width(pData, valb);
 #ifdef CPSCNT_DIRECT_INOUT_MODE
-////////////////////// Ver.0.9.2 hasegawa
+////////////////////// Ver.0.9.2
 					CPSCNT_COMMAND_SET_ONESHOT_PULSE_WIDTH( (unsigned long)dev->baseAddr, &pData->pulsewidth);
-////////////////////// Ver.0.9.2 hasegawa
+////////////////////// Ver.0.9.2
 #endif
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -1587,7 +1544,7 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 			break;
 
-///////////////////////////// Ver.0.9.2 hasegawa
+///////////////////////////// Ver.0.9.2
 		case IOCTL_CPSCNT_SET_Z_LOGIC:
 					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 						return -EFAULT;
@@ -1619,7 +1576,7 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 						return -EFAULT;
 					}
 					break;
-///////////////////////////// Ver.0.9.2 hasegawa
+///////////////////////////// Ver.0.9.2
 	}
 
 	return 0;

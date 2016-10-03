@@ -235,9 +235,9 @@ unsigned long ContecCpsDioInpBit( short Id, short Num, unsigned char *Data )
 
 	ioctl( Id, IOCTL_CPSDIO_INP_PORT, &arg );
 
-//////////////////////////////// Ver.1.0.3 hasegawa
+//////////////////////////////// Ver.1.0.3
 	*Data = ( arg.val  & (1 << (Num % 8) ) ) >> (Num % 8);
-//////////////////////////////// Ver.1.0.3 hasegawa
+//////////////////////////////// Ver.1.0.3
 
 	return DIO_ERR_SUCCESS;
 }
@@ -292,9 +292,9 @@ unsigned long ContecCpsDioOutBit( short Id, short Num, unsigned char Data )
 	ioctl( Id, IOCTL_CPSDIO_INP_PORT , &arg );	
 	arg.port = Num / 8;
 
-//////////////////////////////// Ver.1.0.3 hasegawa
+//////////////////////////////// Ver.1.0.3
 	arg.val = arg.val & (  ~(1 << (Num % 8) ) ) | ( Data << (Num % 8 ) );
-//////////////////////////////// Ver.1.0.3 hasegawa
+//////////////////////////////// Ver.1.0.3
 
 	ioctl( Id, IOCTL_CPSDIO_OUT_PORT , &arg );
 
@@ -352,9 +352,9 @@ unsigned long ContecCpsDioEchoBackBit( short Id, short Num, unsigned char *Data)
 		
 	ioctl( Id, IOCTL_CPSDIO_OUT_PORT_ECHO, &arg );
 
-//////////////////////////////// Ver.1.0.3 hasegawa
+//////////////////////////////// Ver.1.0.3
 	*Data = ( arg.val  & (1 << (Num % 8) ) ) >> (Num % 8);
-//////////////////////////////// Ver.1.0.3 hasegawa
+//////////////////////////////// Ver.1.0.3
 
 	return DIO_ERR_SUCCESS;
 }

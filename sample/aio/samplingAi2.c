@@ -91,7 +91,7 @@ int main(int argc, char *argv[]){
 		else tmp_num = num - 8000 * cnt;
 		ContecCpsAioSetAiEventSamplingTimes( Id, tmp_num );
 		
-		ContecCpsAioSetAiChannels( Id, 8 );
+		ContecCpsAioSetAiChannels( Id, ch );
 
 		ContecCpsAioStartAi( Id );
 		

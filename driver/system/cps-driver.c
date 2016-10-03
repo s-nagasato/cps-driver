@@ -233,14 +233,16 @@ irqreturn_t am335x_nmi_isr(int irq, void *dev_instance){
 /**
 	@~English
 	@brief MCS341 Controller's micro second wait time funciton
-	@note 14, Apr, 2016 : Change :  If the function more than 1 milisecond wait, it call msleep_interruptible function.
+	@note 22, Apr, 2016 : Change :  If the function more than 1 milisecond wait, it call msleep_interruptible function.
 	@param usec : times( micro second order )
+	@param isUsedDelay : 0... sleep, 1... delay
 	@~Japanese
 	@brief MCS341 マイクロ秒ウェイト関数
 	@note 2016.04.22 : 1ミリ秒未満の場合, udelay それ以上の場合は msleep_interruptibleに変更
 	@note 2016.05.16 : 1ミリ秒未満の場合 udelayから usleep_rangeに変更
 	@note 2016.08.09 : スピンロック中にsleepすることが禁止のため、引数を追加
 	@param usec : マイクロ秒
+	@param isUsedDelay : 0... sleep, 1... delay
 **/
 static void contec_cps_micro_delay_sleep(unsigned long usec, unsigned int isUsedDelay){
 
@@ -688,11 +690,10 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_clear_watchdog);
 /**
 	@~English
 	@brief MCS341 Controller's get led.
-	@return ledBit : many LED Bits Data
+	@return many LED Bits Data
 	@~Japanese
 	@brief MCS341 Controller の LEDを設定する関数
-	@param ledBit : LED 8ビットデータ
-	@return Device Number
+	@return LED 8ビットデータ
 **/
 static unsigned char contec_mcs341_controller_getLed( void ){
 

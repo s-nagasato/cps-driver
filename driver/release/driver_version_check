@@ -1,22 +1,10 @@
 #!/bin/sh
 
-CPS_DRIVER_VERSION=$(/sbin/modinfo ./mcs341/cps-driver.ko | grep version:| awk 'NR == 1{ print $2 }')
-CPS_DIO_VERSION=$(/sbin/modinfo ./mcs341/cpsdio.ko | grep version: | awk 'NR == 1{ print $2 }')
-CPS_AIO_VERSION=$(/sbin/modinfo ./mcs341/cpsaio.ko | grep version:| awk 'NR == 1{ print $2 }')
-CPS_COM_VERSION=$(/sbin/modinfo ./mcs341/8250_cpscom.ko | grep version: | awk 'NR == 1{ print $2 }')
-CPS_SSI_VERSION=$(/sbin/modinfo ./mcs341/cpsssi.ko | grep version: | awk 'NR == 1{ print $2 }')
-CPS_CNT_VERSION=$(/sbin/modinfo ./mcs341/cpscnt.ko | grep version: | awk 'NR == 1{ print $2 }')
+cd mcs341
+./driver_version_check
 
-CPS_SPIDIO_VERSION=$(/sbin/modinfo ./mc341/cpsdio_spi.ko | grep version: | awk 'NR == 1{ print $2 }')
+cd ../mc341
+./driver_version_check
 
-echo "-------- CPS-MCS341 driver ---------------------"
-echo "base driver (cps-driver) : "$CPS_DRIVER_VERSION
-echo "COM driver (8250_cpscom) : "$CPS_COM_VERSION
-echo "DIO driver (cpsdio) : "$CPS_DIO_VERSION
-echo "AIO driver (cpsaio) : "$CPS_AIO_VERSION
-echo "SSI driver (cpsssi) : "$CPS_SSI_VERSION
-echo "CNT driver (cpsssi) : "$CPS_CNT_VERSION
-echo "------------------------------------------------"
-echo "-------- CPS-MC341 driver ---------------------"
-echo "DIO driver (cpsdio_spi) : "$CPS_SPIDIO_VERSION
-echo "------------------------------------------------"
+cd ../
+

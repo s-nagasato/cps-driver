@@ -43,7 +43,7 @@
 #endif
 
 
-#define DRV_VERSION	"0.9.2"
+#define DRV_VERSION	"0.9.3"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Counter I/O driver");
@@ -113,6 +113,7 @@ typedef struct __cpscnt_32xxI_software_data{
 
 static LIST_HEAD(cpscnt_32xxI_head);	//software data register
 
+static	int *notFirstOpenFlg = NULL;		// Ver.0.9.3 segmentation fault暫定対策フラグ
 
 /*!
  @~English
@@ -1577,6 +1578,22 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					break;
 ///////////////////////////// Ver.0.9.2
+// Ver.0.9.3
+		case IOCTL_CPSCNT_GET_DRIVER_VERSION:
+			if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+				return -EFAULT;
+			}
+			if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+				return -EFAULT;
+			}
+			spin_lock_irqsave(&dev->lock, flags);
+			strcpy(ioc.str, DRV_VERSION);
+			spin_unlock_irqrestore(&dev->lock, flags);
+
+			if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+				return -EFAULT;
+			}
+			break;
 	}
 
 	return 0;
@@ -1603,18 +1620,23 @@ static int cpscnt_open(struct inode *inode, struct file *filp )
 	unsigned char __iomem *allocMem;
 	unsigned short product_id;
 	int iRet = 0;
+	int nodeNo = 0; // Ver 0.9.3
+
+	nodeNo = iminor( inode ); // Ver 0.9.3
 
 	DEBUG_CPSCNT_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
 
-	if ( inode->i_private != (PCPSCNT_DRV_FILE)NULL ){
-		dev = (PCPSCNT_DRV_FILE)inode->i_private;
-		filp->private_data =  (PCPSCNT_DRV_FILE)dev;
+	if (notFirstOpenFlg[nodeNo]) {		// Ver 0.9.3 初回オープンでなければ（segmentation fault暫定対策）
+		if ( inode->i_private != (PCPSCNT_DRV_FILE)NULL ){
+			dev = (PCPSCNT_DRV_FILE)inode->i_private;
+			filp->private_data =  (PCPSCNT_DRV_FILE)dev;
 
-		if( dev->ref ){
-			dev->ref++;
-			return 0;
-		}else{
-			return -EFAULT;
+			if( dev->ref ){
+				dev->ref++;
+				return 0;
+			}else{
+				return -EFAULT;
+			}
 		}
 	}
 
@@ -1763,6 +1785,7 @@ static int cpscnt_init(void)
 	int cnt;
 	struct device *devlp = NULL;
 	short product_id;
+	int	cntNum = 0; // Ver 0.9.3
 
 	// CPS-MCS341 Device Init
 	contec_mcs341_controller_cpsDevicesInit();
@@ -1814,10 +1837,14 @@ static int cpscnt_init(void)
 			{
 				cpscnt_32xxI_allocate_list( cnt, 2 );
 			}
-
+			cntNum++;// Ver 0.9.3
 		}
 	}
 
+	// Ver 0.9.3
+	if (cntNum) {
+		notFirstOpenFlg = (int *)kzalloc( sizeof(int) * cntNum, GFP_KERNEL );	// segmentation fault暫定対策フラグメモリ確保
+	}
 	return 0;
 }
 
@@ -1833,6 +1860,8 @@ static void cpscnt_exit(void)
 	dev_t dev = MKDEV(cpscnt_major , 0 );
 	int cnt;
 	short product_id;
+
+	kfree(notFirstOpenFlg);		// Ver 0.9.3 segmentation fault暫定対策フラグメモリ解放
 
 	for( cnt = cpscnt_minor; cnt < ( cpscnt_minor + cpscnt_max_devs ) ; cnt ++){
 		if( contec_mcs341_device_IsCategory(cnt , CPS_CATEGORY_CNT ) ){

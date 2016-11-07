@@ -40,7 +40,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.0.7"
+#define DRV_VERSION	"1.0.8"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -116,6 +116,10 @@ static struct cdev cpsaio_cdev;
 static struct class *cpsaio_class = NULL;
 
 static dev_t cpsaio_dev;
+
+static	int *notFirstOpenFlg = NULL;		// Ver.1.0.8 segmentation fault暫定対策フラグ
+
+//static struct device *cpsaio_devlp[CPS_DEVICE_MAX_NUM];
 
 /**
 	@struct cps_aio_data
@@ -260,7 +264,7 @@ int __cpsaio_find_analog_device( int node )
 static long cpsaio_read_ai_data( unsigned long BaseAddr, unsigned short *val )
 {
 	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_AIDATA_CPS_AIO ) , val );
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AIDATA_CPS_AIO ), *val );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ai_data()[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AIDATA_CPS_AIO ), *val );
 	return 0;
 }
 
@@ -277,7 +281,7 @@ static long cpsaio_read_ai_data( unsigned long BaseAddr, unsigned short *val )
 **/ 
 static long cpsaio_write_ao_data( unsigned long BaseAddr, unsigned short val )
 {
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AODATA_CPS_AIO ), val );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_write_ao_data()[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AODATA_CPS_AIO ), val );
 	cps_common_outw( (unsigned long)( BaseAddr + OFFSET_AODATA_CPS_AIO ) , val );
 	return 0;
 }
@@ -296,7 +300,7 @@ static long cpsaio_write_ao_data( unsigned long BaseAddr, unsigned short val )
 static long cpsaio_read_ai_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
 	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_AISTATUS_CPS_AIO ) , wStatus );
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AISTATUS_CPS_AIO ), *wStatus );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ai_status()[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AISTATUS_CPS_AIO ), *wStatus );
 	return 0;
 }
 
@@ -314,7 +318,7 @@ static long cpsaio_read_ai_status( unsigned long BaseAddr, unsigned short *wStat
 static long cpsaio_read_ao_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
 	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_AOSTATUS_CPS_AIO ) , wStatus );
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AOSTATUS_CPS_AIO ), *wStatus );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ao_status()[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AOSTATUS_CPS_AIO ), *wStatus );
 	return 0;
 }
 
@@ -332,7 +336,7 @@ static long cpsaio_read_ao_status( unsigned long BaseAddr, unsigned short *wStat
 static long cpsaio_read_mem_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
 	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_MEMSTATUS_CPS_AIO ) , wStatus );
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_MEMSTATUS_CPS_AIO ), *wStatus );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_mem_status()[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_MEMSTATUS_CPS_AIO ), *wStatus );
 	return 0;
 }
 
@@ -377,13 +381,13 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 
 
 	/* command */
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%x\n",com_addr, wCommand );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): [%lx]=%x\n",com_addr, wCommand );
 	cps_common_outw( com_addr , wCommand );
 	//DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%x\n",com_addr, wCommand );
 	/* data */
 	switch( isReadWrite ){
 	case CPS_AIO_COMMAND_READ :
-		DEBUG_CPSAIO_COMMAND(KERN_INFO"<READ>\n");
+		DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): <READ>\n");
 		cps_common_inpw(  dat_addr_l , &data_l  );
 		if( size == 4 ) cps_common_inpw(  dat_addr_u , &data_u  );
 		else data_u = 0;
@@ -394,18 +398,18 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 		case 2:
 			tmpWordData = (unsigned short *) vData;
 			*tmpWordData = data_l;
-			DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%04x\n",dat_addr_l, data_l);
+			DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): [%lx]=%04x\n",dat_addr_l, data_l);
 			break;
 		case 4:
 			tmpDWordData = (unsigned long *) vData;
 			*tmpDWordData = (unsigned long ) ( data_u << 16 | data_l );
-			DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%04x\n",dat_addr_l, data_l);
-			DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%04x\n", dat_addr_u, data_u);
+			DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): [%lx]=%04x\n",dat_addr_l, data_l);
+			DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): [%lx]=%04x\n", dat_addr_u, data_u);
 			break;
 	}	
 	break;	
 	case CPS_AIO_COMMAND_WRITE :
-		DEBUG_CPSAIO_COMMAND(KERN_INFO"<WRITE>\n");
+		DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): <WRITE>\n");
 		switch( size ){
 		case 2:
 			tmpWordData = (unsigned short *) vData;
@@ -423,11 +427,11 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 		cps_common_outw( BaseAddr + OFFSET_COMMAND_DATALOCK_AIO	 , CPS_AIO_DATA_UNLOCK );
 
 		cps_common_outw( dat_addr_l , data_l );
-		DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%04x\n",dat_addr_l, data_l);
+		DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): [%lx]=%04x\n",dat_addr_l, data_l);
 
 		if( size == 4 ){
 			cps_common_outw( dat_addr_u , data_u );
-			DEBUG_CPSAIO_COMMAND(KERN_INFO"[%lx]=%04x\n", dat_addr_u, data_u);
+			DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_command(): [%lx]=%04x\n", dat_addr_u, data_u);
 		}
 
 		// DataWrite Lock
@@ -668,7 +672,7 @@ unsigned long cpsaio_write_eeprom(unsigned int dev, unsigned int cate, unsigned 
 		}
 		else count++;
 
-		DEBUG_CPSAIO_EEPROM(KERN_INFO" %d, %x :: %x \n", dev, val , chkVal );  
+		DEBUG_CPSAIO_EEPROM(KERN_INFO"cpsaio_write_eeprom() %d, %x :: %x \n", dev, val , chkVal );  
 
 	}while( chkVal != val );
 	return 0;
@@ -1598,6 +1602,23 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					break;
 
+		case IOCTL_CPSAIO_GET_DRIVER_VERSION:
+			// Ver.1.0.8 Add
+			if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+				return -EFAULT;
+			}
+			if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+				return -EFAULT;
+			}
+			spin_lock_irqsave(&dev->lock, flags);
+			strcpy(ioc.str, DRV_VERSION);
+			spin_unlock_irqrestore(&dev->lock, flags);
+
+			if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+				return -EFAULT;
+			}
+			break;
+
 	}
 	return 0;
 }
@@ -1751,20 +1772,36 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 	unsigned char __iomem *allocMem;
 	unsigned short product_id;
 	int iRet = 0;
+	int nodeNo = 0; // Ver.1.0.8
+
+	nodeNo = iminor( inode );// Ver.1.0.8
 
 	DEBUG_CPSAIO_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
 
-	if ( inode->i_private != (PCPSAIO_DRV_FILE)NULL ){
-		dev = (PCPSAIO_DRV_FILE)inode->i_private;
-		filp->private_data =  (PCPSAIO_DRV_FILE)dev;
+//	if( cpsaio_devlp[iminor( inode )] == NULL )
+//		return -EFAULT;
+//	test = dev_get_drvdata(cpsaio_devlp[iminor( inode )]);
+//	DEBUG_CPSAIO_OPEN(KERN_INFO"inode->private %x\n",(int)inode->i_private );
+//	DEBUG_CPSAIO_OPEN(KERN_INFO"drv_get_devdata %x\n",*test );
 
-		if( dev->ref ){
-			dev->ref++;
-			return 0;
-		}else{
-			return -EFAULT;
+	if (notFirstOpenFlg[nodeNo]) {		// Ver.1.0.8 初回オープンでなければ（segmentation fault暫定対策）
+		if ( inode->i_private != (PCPSAIO_DRV_FILE)NULL ){
+
+			DEBUG_CPSAIO_OPEN(KERN_INFO"inode->private %x\n",(int)inode->i_private );
+
+			dev = (PCPSAIO_DRV_FILE)inode->i_private;
+			filp->private_data =  (PCPSAIO_DRV_FILE)dev;
+
+			if( dev->ref ){
+				dev->ref++;
+				return 0;
+			}else{
+				return -EFAULT;
+			}
 		}
 	}
+
+	DEBUG_CPSAIO_OPEN(KERN_INFO"inode->private %x\n",(int)inode->i_private );
 
 	filp->private_data = (PCPSAIO_DRV_FILE)kzalloc( sizeof(CPSAIO_DRV_FILE) , GFP_KERNEL );
 	if( filp->private_data == (PCPSAIO_DRV_FILE)NULL ){
@@ -1812,6 +1849,7 @@ static int cpsaio_open(struct inode *inode, struct file *filp )
 	spin_lock_init( &dev->lock );
 
 	dev->ref = 1;
+	notFirstOpenFlg[nodeNo]++;		// Ver.1.0.8 segmentation fault暫定対策フラグインクリメント
 
 	return 0;
 NOT_FOUND_AIO_PRODUCT:
@@ -1902,6 +1940,7 @@ static int cpsaio_init(void)
 	int major;
 	int cnt;
 	struct device *devlp = NULL;
+	int	aioNum = 0; // Ver.1.0.8
 
 	// CPS-MCS341 Device Init
 	contec_mcs341_controller_cpsDevicesInit();
@@ -1936,10 +1975,12 @@ static int cpsaio_init(void)
 	}
 
 	for( cnt = cpsaio_minor; cnt < ( cpsaio_minor + cpsaio_max_devs ) ; cnt ++){
+//		cpsaio_devlp[cnt] = (struct device *) NULL;
 		if( contec_mcs341_device_IsCategory(cnt , CPS_CATEGORY_AIO ) ){
 			if( __cpsaio_find_analog_device( cnt ) >= 0  ){
 				cpsaio_dev = MKDEV( cpsaio_major, cnt );
 
+//				cpsaio_devlp[cnt] = device_create(
 				devlp = device_create(
 					cpsaio_class, NULL, cpsaio_dev, NULL, CPSAIO_DRIVER_NAME"%d", cnt);
 
@@ -1948,8 +1989,16 @@ static int cpsaio_init(void)
 					unregister_chrdev_region( dev, cpsaio_max_devs );
 					return PTR_ERR(devlp);
 				}
+				aioNum++;
+				//dev_set_drvdata( cpsaio_devlp[cnt], &cnt );
+
 			}
 		}
+	}
+
+	// Ver.1.0.8
+	if (aioNum) {
+		notFirstOpenFlg = (int *)kzalloc( sizeof(int) * aioNum, GFP_KERNEL );	// segmentation fault暫定対策フラグメモリ確保
 	}
 
 	return 0;
@@ -1966,6 +2015,8 @@ static void cpsaio_exit(void)
 
 	dev_t dev = MKDEV(cpsaio_major , 0 );
 	int cnt;
+
+	kfree(notFirstOpenFlg);		// Ver.1.0.8 segmentation fault暫定対策フラグメモリ解放
 
 	for( cnt = cpsaio_minor; cnt < ( cpsaio_minor + cpsaio_max_devs ) ; cnt ++){
 		if( contec_mcs341_device_IsCategory(cnt , CPS_CATEGORY_AIO ) ){

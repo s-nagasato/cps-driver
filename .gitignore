@@ -34,7 +34,10 @@
 
 help/
 driver/ctrl/
-driver/release/**/*
+driver/release/mcs341/*
+!driver/release/mcs341/driver_version_check
+driver/release/mc341/*
+!driver/release/mc341/driver_version_check
 lib/release/**/*
 sample/ssi/etc/
 sample/aio/etc/

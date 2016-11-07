@@ -29,7 +29,7 @@ typedef struct __cpsdio_device_data{
 struct cpsdio_ioctl_arg{
 	unsigned int port;	///< port
 	unsigned int val;///< value
-	unsigned char str[32];
+	unsigned char str[32];	///< string
 };
 
 
@@ -76,7 +76,7 @@ struct cpsdio_ioctl_arg{
 #define IOCTL_CPSDIO_GET_DERECTION	_IOR(CPSDIO_MAGIC, 18, struct cpsdio_ioctl_arg )
 #define IOCTL_CPSDIO_GET_INTERNAL_POW	_IOW(CPSDIO_MAGIC, 19, struct cpsdio_ioctl_arg)
 
-
+#define IOCTL_CPSDIO_GET_DRIVER_VERSION	_IOR(CPSDIO_MAGIC, 20, struct cpsdio_ioctl_arg)
 
 #define IOCTL_CPSDIO_SET_INTERNAL_BAT	IOCTL_CPSDIO_SET_INTERNAL_POW
 

@@ -18,14 +18,15 @@ ifeq "$(CPS_SDK_ROOTDIR)" ""
 KERNELDIR ?= /home/contec/workspace/sdk/CPS_SDK/kernel #target kernel source path ( static path )
 #KERNELDIR ?= ~/CPS_SDK/kernel #target kernel source path ( static path )
 CPS_DRIVER_REELASE_DIR:=../../release/mc341/
+EXTRA_CFLAGS +=-I$(src)/../../../include/
 else
 KERNELDIR ?= $(CPS_SDK_ROOTDIR)/kernel
-CPS_DRIVER_REELASE_DIR:=../../release/
-EXTRA_CFLAGS	+= -DCONFIG_CONPROSYS_SDK
+CPS_DRIVER_REELASE_DIR:=../../release/ 
+EXTRA_CFLAGS +=-I$(src)/../include/
 endif
 
 all:
-	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNELDIR) KBUILD_EXTRA_SYMBOLS=$(EXTRA_SYMBOL) M=$(PWD) modules
+	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNELDIR) M=$(PWD) modules
 
 modules_install:
 	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KERNELDIR) M=$(PWD) modules_install INSTALL_MOD_PATH=${CPS_SDK_INSTALL_FULLDIR}/$(TARGET_ROOTFS)

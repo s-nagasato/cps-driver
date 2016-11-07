@@ -39,6 +39,8 @@
  #include "libcpsaio.h"
 #endif
 
+#define CONTEC_CPSAIO_LIB_VERSION	"1.0.7"
+
 typedef struct __contec_cps_aio_int_callback__
 {
 	PCONTEC_CPS_AIO_INT_CALLBACK func;
@@ -282,6 +284,40 @@ unsigned long ContecCpsAioGetAiMaxChannels( short Id, short *AiMaxChannels ){
 	*AiMaxChannels = arg.val;
 
 	return AIO_ERR_SUCCESS;
+}
+
+/**
+	@~English
+	@brief AIO Library gets driver and library version.
+	@param Id : Device ID
+	@param libVer : library version
+	@param drvVer : driver version
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief アナログデバイスのドライバとライブラリのバージョン文字列を取得します。
+	@param Id : デバイスID
+	@param libVer : ライブラリバージョン
+	@param drvVer : ドライババージョン
+	@return 成功: AIO_ERR_SUCCESS
+**/
+unsigned long ContecCpsAioGetVersion( short Id , unsigned char libVer[] , unsigned char drvVer[] )
+{
+
+	struct cpsaio_ioctl_arg	arg;
+	int len;
+
+
+	ioctl( Id, IOCTL_CPSAIO_GET_DRIVER_VERSION, &arg );
+
+	len = sizeof( arg.str ) / sizeof( arg.str[0] );
+	memcpy(drvVer, arg.str, len);
+//	strcpy_s(drvVer, arg.str);
+
+	len = sizeof( CONTEC_CPSAIO_LIB_VERSION ) /sizeof( unsigned char );
+	memcpy(libVer, CONTEC_CPSAIO_LIB_VERSION, len);
+
+	return AIO_ERR_SUCCESS;
+
 }
 
 /**
@@ -1584,12 +1620,27 @@ unsigned long ContecCpsAioOutpD( short Id, unsigned long addr, unsigned long val
 
 }
 
+/**
+	@~English
+	@brief AIO Library the register of ecu address read data.(1byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのECUアドレスレジスタを読み出す関数。(1byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioEcuInp( short Id, unsigned long addr, unsigned char *value )
 {
 	struct cpsaio_direct_command_arg arg;
 
 	arg.addr = addr;
 	arg.isEcu = 1;
+	arg.size = 1;
 	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_INPUT, arg );
 	*value = (unsigned char)arg.val;
 
@@ -1597,7 +1648,20 @@ unsigned long ContecCpsAioEcuInp( short Id, unsigned long addr, unsigned char *v
 
 }
 
-
+/**
+	@~English
+	@brief AIO Library the register of ecu address read data.(2byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのECUアドレスレジスタを読み出す関数。(2byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioEcuInpW( short Id, unsigned long addr, unsigned short *value )
 {
 
@@ -1605,12 +1669,27 @@ unsigned long ContecCpsAioEcuInpW( short Id, unsigned long addr, unsigned short 
 
 	arg.addr = addr;
 	arg.isEcu = 1;
+	arg.size = 2;
 	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_INPUT, arg );
 	*value = (unsigned short)arg.val;
 
-	return 0;
+	return 	AIO_ERR_SUCCESS;
 }
 
+/**
+	@~English
+	@brief AIO Library the register of ecu address read data.(4byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのECUアドレスレジスタを読み出す関数。(4byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioEcuInpD( short Id, unsigned long addr, unsigned long *value )
 {
 
@@ -1618,24 +1697,54 @@ unsigned long ContecCpsAioEcuInpD( short Id, unsigned long addr, unsigned long *
 
 	arg.addr = addr;
 	arg.isEcu = 1;
+	arg.size = 4;
 	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_INPUT, arg );
 	*value = (unsigned long)arg.val;
 
-	return 0;
+	return 	AIO_ERR_SUCCESS;
 }
 
+/**
+	@~English
+	@brief AIO Library the register of ecu address write data.(1byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのECUアドレスレジスタへ書き出す関数。(1byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioEcuOutp( short Id, unsigned long addr, unsigned char value )
 {
 	struct cpsaio_direct_command_arg arg;
 
 	arg.addr = addr;
 	arg.isEcu = 1;
+	arg.size = 1;
 	arg.val = value;
 	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT, arg );
 
-	return 0;
+	return 	AIO_ERR_SUCCESS;
 }
 
+/**
+	@~English
+	@brief AIO Library the register of ecu address write data.(2byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのECUアドレスレジスタへ書き出す関数。(2byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioEcuOutpW( short Id, unsigned long addr, unsigned short value )
 {
 
@@ -1643,13 +1752,28 @@ unsigned long ContecCpsAioEcuOutpW( short Id, unsigned long addr, unsigned short
 
 	arg.addr = addr;
 	arg.isEcu = 1;
-	arg.val = value;
+	arg.size = 2;
+	arg.val = (unsigned long)value;
 
 	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT, arg );
 
-	return 0;
+	return 	AIO_ERR_SUCCESS;
 }
 
+/**
+	@~English
+	@brief AIO Library the register of ecu address write data.(4byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのECUアドレスレジスタへ書き出す関数。(4byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioEcuOutpD( short Id, unsigned long addr, unsigned long value )
 {
 
@@ -1657,46 +1781,176 @@ unsigned long ContecCpsAioEcuOutpD( short Id, unsigned long addr, unsigned long 
 
 	arg.addr = addr;
 	arg.isEcu = 1;
+	arg.size = 4;
 	arg.val = value;
 
 	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT, arg );
 
-	return 0;
+	return 	AIO_ERR_SUCCESS;
 }
 
+/**
+	@~English
+	@brief AIO Library the register of command address read data.(1byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのCOMMANDアドレスレジスタを読み出す関数。(1byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioCommandInp( short Id, unsigned long addr, unsigned char *value )
 {
 
-	return 0;
+	struct cpsaio_direct_command_arg arg;
+
+	arg.addr = addr;
+	arg.isEcu = 0;
+	arg.size = 1;
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_INPUT, arg );
+	*value = (unsigned char)arg.val;
+
+	return AIO_ERR_SUCCESS;
 }
 
+/**
+	@~English
+	@brief AIO Library the register of command address read data.(2byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのCOMMANDアドレスレジスタを読み出す関数。(2byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioCommandInpW( short Id, unsigned long addr, unsigned short *value )
 {
 
-	return 0;
+	struct cpsaio_direct_command_arg arg;
+
+	arg.addr = addr;
+	arg.isEcu = 0;
+	arg.size = 2;
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_INPUT, arg );
+	*value = (unsigned short)arg.val;
+
+	return AIO_ERR_SUCCESS;
 }
 
+/**
+	@~English
+	@brief AIO Library the register of command address read data.(4byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのCOMMANDアドレスレジスタを読み出す関数。(4byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioCommandInpD( short Id, unsigned long addr, unsigned long *value )
 {
 
-	return 0;
+	struct cpsaio_direct_command_arg arg;
+
+	arg.addr = addr;
+	arg.isEcu = 0;
+	arg.size = 4;
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_INPUT, arg );
+	*value = (unsigned long)arg.val;
+
+	return AIO_ERR_SUCCESS;
 }
 
+/**
+	@~English
+	@brief AIO Library the register of command address write data.(1byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのCOMMANDアドレスレジスタへ書き出す関数。(1byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioCommandOutp( short Id, unsigned long addr, unsigned char value )
 {
+	struct cpsaio_direct_command_arg arg;
 
-	return 0;
+	arg.addr = addr;
+	arg.isEcu = 0;
+	arg.size = 1;
+	arg.val = (unsigned long)value;
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT, arg );
+
+	return 	AIO_ERR_SUCCESS;
 }
 
+/**
+	@~English
+	@brief AIO Library the register of command address write data.(2byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのCOMMANDアドレスレジスタへ書き出す関数。(2byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioCommandOutpW( short Id, unsigned long addr, unsigned short value )
 {
+	struct cpsaio_direct_command_arg arg;
 
-	return 0;
+	arg.addr = addr;
+	arg.isEcu = 0;
+	arg.size = 2;
+	arg.val = (unsigned long)value;
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT, arg );
+
+	return 	AIO_ERR_SUCCESS;
 }
 
+/**
+	@~English
+	@brief AIO Library the register of command address write data.(4byte)
+	@param Id : Device ID
+	@param addr : Address
+	@param value : Values
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief デバイスのCOMMANDアドレスレジスタへ書き出す関数。(4byte)
+	@param Id : デバイスID
+	@param addr : アドレス
+	@param value : 値
+	@return 成功: AIO_ERR_SUCCESS
+**/
 unsigned long ContecCpsAioCommandOutpD( short Id, unsigned long addr, unsigned long value )
 {
+	struct cpsaio_direct_command_arg arg;
 
-	return 0;
+	arg.addr = addr;
+	arg.isEcu = 0;
+	arg.size = 4;
+	arg.val = value;
+	ioctl( Id, IOCTL_CPSAIO_DIRECT_COMMAND_OUTPUT, arg );
+
+	return 	AIO_ERR_SUCCESS;
 }
 

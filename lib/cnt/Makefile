@@ -7,7 +7,7 @@ OBJ=libcpscnt.o
 SRC=libcpscnt.c
 CFLAGS= -g -Wall
 
-VERSION =0.9.2
+VERSION =0.9.3
 
 # CPS_SDK_MACRO_CHECK ( without CONPROSYS SDK )
 ifneq "$(CPS_SDK_INSTALL_FULLDIR)" ""

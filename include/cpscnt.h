@@ -28,7 +28,7 @@ typedef struct __cpscnt_device_data{
 struct cpscnt_ioctl_arg{
 	unsigned long val;///< value
 	unsigned int ch;///< Channel
-	unsigned char str[32];
+	unsigned char str[32];	///< string
 };
 
 
@@ -102,5 +102,7 @@ struct cpscnt_ioctl_arg{
 #define IOCTL_CPSCNT_GET_MODE				_IOW(CPSCNT_MAGIC, 32, struct cpscnt_ioctl_arg)
 
 #define IOCTL_CPSCNT_GET_Z_LOGIC			_IOW(CPSCNT_MAGIC, 33, struct cpscnt_ioctl_arg)
+
+#define IOCTL_CPSCNT_GET_DRIVER_VERSION	_IOR(CPSCNT_MAGIC, 34, struct cpscnt_ioctl_arg)
 
 /**************************************************/

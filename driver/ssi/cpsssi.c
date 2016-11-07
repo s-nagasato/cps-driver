@@ -48,7 +48,7 @@
 
 #endif
 
-#define DRV_VERSION	"1.0.6"
+#define DRV_VERSION	"1.0.7"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS SenSor Input driver");
@@ -67,6 +67,8 @@ typedef struct __cpsssi_driver_file{
 	CPSSSI_DEV_DATA data;				///< Device Data
 
 }CPSSSI_DRV_FILE,*PCPSSSI_DRV_FILE;
+
+static	int *notFirstOpenFlg = NULL;		// Ver 1.0.7 segmentation fault暫定対策フラグ
 
 typedef struct __cpsssi_xp_offset_software_data{
 	unsigned int node;				///< Device Node
@@ -574,7 +576,7 @@ void cpsssi_command_4p_get_channel( unsigned long BaseAddr, unsigned int ch , un
 void cpsssi_command_4p_set_start( unsigned long BaseAddr, unsigned int ch )
 {
 	unsigned short wVal = 0;
-	unsigned short wStatus = 0;
+
 	switch ( ch ) {
 	case 0 : wVal = CPS_SSI_SSI_SET_ADDR_COMMAND_START_CHANNEL0; break;
 	case 1 : wVal = CPS_SSI_SSI_SET_ADDR_COMMAND_START_CHANNEL1; break;
@@ -585,10 +587,6 @@ void cpsssi_command_4p_set_start( unsigned long BaseAddr, unsigned int ch )
 	cpsssi_command_4p( BaseAddr, CPS_SSI_4P_COMMAND_WRITE,
 			CPS_SSI_SSI_SET_ADDR_COMMAND_STATUS, &wVal );
 
-	// Conversion Busy Wait
-	//do{
-	//	CPSSSI_COMMAND_4P_GET_STATUS( BaseAddr , &wStatus );
-	//} while( !(wStatus & 0x40) );
 
 }
 
@@ -913,10 +911,14 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	unsigned int cnt = 0;
 	unsigned long flags;
 	
+	struct cpsssi_ioctl_arg ioc;
+	struct cpsssi_direct_command_arg dc_ioc; // Ver 1.0.7
+
 	PCPSSSI_4P_CHANNEL_DATA pData = (PCPSSSI_4P_CHANNEL_DATA)dev->data.ChannelData;
 
-	struct cpsssi_ioctl_arg ioc;
+
 	memset( &ioc, 0 , sizeof(ioc) );
+	memset( &dc_ioc, 0 , sizeof(dc_ioc) );  // Ver 1.0.7
 	if ( dev == (PCPSSSI_DRV_FILE)NULL ){
 		DEBUG_CPSSSI_IOCTL(KERN_INFO"CPSSSI_DRV_FILE NULL POINTER.");
 		return -EFAULT;
@@ -1182,6 +1184,54 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 					DEBUG_CPSSSI_EEPROM(KERN_INFO"EEPROM-CLEAR\n");
 					break;
+// Ver 1.0.7
+		case IOCTL_CPSSSI_DIRECT_COMMAND_OUTPUT:
+					if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+
+					if( copy_from_user( &dc_ioc, (int __user *)arg, sizeof(dc_ioc) ) ){
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					valw = (unsigned short) dc_ioc.val;
+					cpsssi_command_4p( (unsigned long)( dev->baseAddr ) ,CPS_SSI_COMMAND_WRITE, dc_ioc.addr, &valw );
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					break;
+//
+			case IOCTL_CPSSSI_DIRECT_COMMAND_INPUT:
+					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+						return -EFAULT;
+					}
+					if( copy_from_user( &dc_ioc, (int __user *)arg, sizeof(dc_ioc) ) ){
+						return -EFAULT;
+					}
+					spin_lock_irqsave(&dev->lock, flags);
+					cpsssi_command_4p( (unsigned long)( dev->baseAddr ) ,CPS_SSI_COMMAND_READ, dc_ioc.addr, &valw );
+					dc_ioc.val = (unsigned long) valw;
+					spin_unlock_irqrestore(&dev->lock, flags);
+
+					if( copy_to_user( (int __user *)arg, &dc_ioc, sizeof(dc_ioc) ) ){
+						return -EFAULT;
+					}
+					break;
+
+			case IOCTL_CPSSSI_GET_DRIVER_VERSION:
+				if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+					return -EFAULT;
+				}
+				if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+					return -EFAULT;
+				}
+				spin_lock_irqsave(&dev->lock, flags);
+				strcpy(ioc.str, DRV_VERSION);
+				spin_unlock_irqrestore(&dev->lock, flags);
+
+				if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+					return -EFAULT;
+				}
+				break;
 	}
 
 	return 0;
@@ -1208,19 +1258,23 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	unsigned char __iomem *allocMem;
 	unsigned short product_id;
 	int iRet = 0;
+	int nodeNo = 0;// Ver 1.0.7
+
+	nodeNo = iminor( inode );// Ver 1.0.7
 
 	DEBUG_CPSSSI_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
 
+	if (notFirstOpenFlg[nodeNo]) {		// Ver 1.0.7 初回オープンでなければ（segmentation fault暫定対策）
+		if ( inode->i_private != (PCPSSSI_DRV_FILE)NULL ){
+			dev =  (PCPSSSI_DRV_FILE)inode->i_private;
+			filp->private_data = (PCPSSSI_DRV_FILE)dev;
 
-	if ( inode->i_private != (PCPSSSI_DRV_FILE)NULL ){
-		dev =  (PCPSSSI_DRV_FILE)inode->i_private;
-		filp->private_data = (PCPSSSI_DRV_FILE)dev;
-
-		if( dev->ref ){
-			dev->ref++;
-			return 0;
-		}else{
-			return -EFAULT;
+			if( dev->ref ){
+				dev->ref++;
+				return 0;
+			}else{
+				return -EFAULT;
+			}
 		}
 	}
 
@@ -1380,6 +1434,7 @@ static int cpsssi_init(void)
 	short product_id;	// Ver.1.0.3
 
 	struct device *devlp = NULL;
+	int	ssiNum = 0;// Ver 1.0.7
 
 	// CPS-MCS341 Device Init
 	contec_mcs341_controller_cpsDevicesInit();
@@ -1431,8 +1486,14 @@ static int cpsssi_init(void)
 				{
 					cpsssi_4p_allocate_offset_list( cnt, 4 );
 				}
+				ssiNum++;// Ver 1.0.7
 			}
 		}
+	}
+
+	// Ver 1.0.7
+	if (ssiNum) {
+		notFirstOpenFlg = (int *)kzalloc( sizeof(int) * ssiNum, GFP_KERNEL );	// segmentation fault暫定対策フラグメモリ確保
 	}
 
 	return 0;
@@ -1451,6 +1512,8 @@ static void cpsssi_exit(void)
 	dev_t dev = MKDEV(cpsssi_major , 0 );
 	int cnt;
 	short product_id;	// Ver.1.0.3
+
+	kfree(notFirstOpenFlg);		// Ver 1.0.7 segmentation fault暫定対策フラグメモリ解放
 
 	for( cnt = cpsssi_minor; cnt < ( cpsssi_minor + cpsssi_max_devs ) ; cnt ++){
 		if( contec_mcs341_device_IsCategory(cnt , CPS_CATEGORY_SSI ) ){

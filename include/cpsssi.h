@@ -41,9 +41,23 @@ typedef struct __cpsssi_4p_channel_data{
 	@brief I/O コントロール 構造体
 **/
 struct cpsssi_ioctl_arg{
-	unsigned int ch;
-	unsigned long val;
+	unsigned int ch;	///< channel
+	unsigned long val;	///< value
+	unsigned char str[32];	///< string
 };
+
+/**
+	@struct __cpsssi_device_data
+	@~English
+	@brief structure direct command I/O
+	@~Japanese
+	@brief 直接I/Oコマンド　構造体
+**/
+struct cpsssi_direct_command_arg{
+	unsigned long addr;	///< address
+	unsigned long val;	///< value
+};
+
 
 /*  Error Code */
 
@@ -121,4 +135,10 @@ struct cpsssi_ioctl_arg{
 #define IOCTL_CPSSSI_GET_CHANNEL	_IOR(CPSSSI_MAGIC, 14, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_GET_SENSE_RESISTANCE	_IOR(CPSSSI_MAGIC, 15, struct cpsssi_ioctl_arg)
 #define IOCTL_CPSSSI_STARTBUSYSTATUS	_IOR(CPSSSI_MAGIC, 16, struct cpsssi_ioctl_arg)
+
+#define IOCTL_CPSSSI_GET_DRIVER_VERSION	_IOR(CPSSSI_MAGIC, 17, struct cpsssi_ioctl_arg)
+
+#define IOCTL_CPSSSI_DIRECT_COMMAND_OUTPUT	_IOW(CPSSSI_MAGIC, 64, struct cpsssi_direct_command_arg)
+#define IOCTL_CPSSSI_DIRECT_COMMAND_INPUT _IOR(CPSSSI_MAGIC, 65, struct cpsssi_direct_command_arg)
+
 /**************************************************/

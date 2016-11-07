@@ -30,24 +30,55 @@
 #include <fcntl.h>
 #include <time.h>
 #include <sys/time.h>
-#include "../../include/libcpsdio.h"
+#include <string.h>
+#include "libcpsdio.h"
 
 int main(int argc, char *argv[]){
 	short Id;
-
+	unsigned char devName[32]="/dev/";
 	unsigned char dat, dat2;
+	unsigned int isPowerSupply;
+	int ch;
+
+	if( argc > 1 ){
+		strcat(devName, argv[1]);
+	}else{
+		strcat(devName, "cpsdio0");
+	}
+
+	/* 計測チャネル数選択 */
+	if( argc > 2 ){
+		sscanf( argv[2], "%d", (unsigned int*)&ch );
+	}else{
+		ch = 0;
+	}
+
+	// データ設定
+	if( argc > 3 ){
+		sscanf( argv[3], "%x",(unsigned int*) &dat );
+	}else{
+		dat = 0x55;
+	}
+
+	// 電源制御 (BLのみ)
+	if( argc > 4 ){
+		sscanf( argv[4], "%d", &isPowerSupply );
+	}else{
+		isPowerSupply = DIO_POWERSUPPLY_INTERNAL;
+	}
 
 	/* デバイスをopenする */
-	ContecCpsDioInit("cpsdio0", &Id);
+	ContecCpsDioInit(devName, &Id);
 
-	dat = 0x55;
+#ifdef CONFIG_DIO_BL
+	ContecCpsDioSetInternalPowerSupply( Id, (unsigned char)isPowerSupply );
+#endif
+	ContecCpsDioOutByte(Id, ch, dat );
 
-	ContecCpsDioOutByte(Id, 0, dat );
+	ContecCpsDioInpByte(Id, ch, &dat2 );
 
-	ContecCpsDioInpByte(Id, 0, &dat2 );
-
-	if( dat == dat2 ) printf(" In = Out \n");
-	else	printf(" In %x Out %x \n", dat, dat2 ); 
+	if( dat == dat2 ) printf("[ch:%d] In = Out (value %x\n", ch, dat );
+	else	printf(" In %x Out %x \n", dat2, dat ); 
 
 	/* デバイスを閉じる*/
 	ContecCpsDioExit(Id);

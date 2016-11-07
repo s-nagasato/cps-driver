@@ -37,9 +37,9 @@
 int main(int argc, char *argv[]){
 
 	short Id;
-	unsigned long ai_dat[8];
-	double ai_dat_ex[8];
-	unsigned char devName[32];
+	unsigned long ai_dat[8]={0x8000,0x8000,0x8000,0x8000,0x8000,0x8000,0x8000,0x8000};
+	double ai_dat_ex[8]={0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
+	unsigned char devName[32]="";
 	int cnt;
 	int iRet;
 	int isMulti = 0;
@@ -49,9 +49,9 @@ int main(int argc, char *argv[]){
 	double clk = 100.0; // 100 usec
 	
 	if( argc > 1 ){
-		strcpy(devName, argv[1]);
+		strcat(devName, argv[1]);
 	}else{
-		strcpy(devName, "cpsaio0");
+		strcat(devName, "cpsaio0");
 	}
 
 	if( argc > 2 ){
@@ -87,23 +87,23 @@ int main(int argc, char *argv[]){
 
 	if( isMulti == 0 ){
 		/* SingleAi or SingleAiEx sample */
-		for( cnt = 0; cnt < ch;cnt ++ ){
+		//for( cnt = 0; cnt < ch;cnt ++ ){
 			if( isEx == 0 ){
 				/* SingleAi */
-				iRet = ContecCpsAioSingleAi(Id, cnt, &ai_dat[cnt] );
-				printf("AI [%d] = %lx\n",cnt,ai_dat[cnt]);
+				iRet = ContecCpsAioSingleAi(Id, ch, &ai_dat[ch] );
+				printf("AI [%d] = %lx\n",ch,ai_dat[ch]);
 				if( iRet ){
 					printf("Error: %d\n", iRet );
 				}
 			}else{
 				/* SingleAiEx */
-				iRet = ContecCpsAioSingleAiEx(Id, cnt, &ai_dat_ex[cnt] );
-				printf("AI [%d] = %lf\n",cnt,ai_dat_ex[cnt]);
+				iRet = ContecCpsAioSingleAiEx(Id, ch, &ai_dat_ex[ch] );
+				printf("AI [%d] = %lf\n",ch,ai_dat_ex[ch]);
 				if( iRet ){
 					printf("Error: %d\n", iRet );
 				}
 			}
-		}
+		//}
 	}else{
 		/* MultiAi or MultiAiEx sample */
 		if( isEx == 0 ){
@@ -112,7 +112,7 @@ int main(int argc, char *argv[]){
 			if( iRet ){
 				printf("Error: %d\n", iRet );
 			}
-			for( cnt = 0;cnt < 8; cnt ++){
+			for( cnt = 0;cnt < ch; cnt ++){
 				printf("AI [%d] = %lx\n",cnt,ai_dat[cnt]);
 			}
 		}else{
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]){
 			if( iRet ){
 				printf("Error: %d\n", iRet );
 			}
-			for( cnt = 0; cnt < 8 ;cnt ++){
+			for( cnt = 0; cnt < ch ;cnt ++){
 				printf("AI [%d] = %lf\n",cnt,ai_dat_ex[cnt]);
 			}
 		}

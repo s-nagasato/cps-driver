@@ -42,7 +42,7 @@
 
 #endif
 
-#define DRV_VERSION	"0.9.9"
+#define DRV_VERSION	"1.0.0"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Digital I/O driver");
@@ -70,6 +70,7 @@ typedef struct __cpsdio_driver_file{
 
 }CPSDIO_DRV_FILE,*PCPSDIO_DRV_FILE;
 
+static	int *notFirstOpenFlg = NULL;		// Ver.1.0.0 segmentation fault暫定対策フラグ
 
 /*!
  @~English
@@ -90,6 +91,11 @@ typedef struct __cpsdio_driver_file{
 #define DEBUG_CPSDIO_IOCTL(fmt...)	do { } while (0)
 #endif
 
+#if 0
+#define DEBUG_CPSDIO_INTERRUPT_CHECK(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSDIO_INTERRUPT_CHECK(fmt...)	do { } while (0)
+#endif
 
 /// @}
 ///
@@ -500,15 +506,23 @@ irqreturn_t cpsdio_isr_func(int irq, void *dev_instance){
 	
 	if( !dev ) return IRQ_NONE;
 
+	DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- isr_func: isDio=%u\n", contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_DIO ) );
 	if( contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_DIO ) ){ 
 		cpsdio_read_interrupt_status( (unsigned long)dev->baseAddr, &wStatus);
 
 		if( dev->int_callback != NULL && wStatus ){
 			// sending user callback function ( kernel context to user context <used signal SIGUSR1 > )
+			DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- send_sig (1): wStatus=%02X\n", 
+							wStatus);
 			send_sig( SIGUSR2, dev->int_callback, 1 );
+	DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- send_sig (2): wStatus=%02X\n", 
+							wStatus);
 		}
 	}
-	else return IRQ_NONE;
+	else {
+		DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- IRQ_NONE\n");
+		return IRQ_NONE;
+	}
 	
 
 	if(printk_ratelimit()){
@@ -672,6 +686,7 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}					
 					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
+					DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- SET_INT_MASK: val=%02X\n", valw);
 					cpsdio_write_interrupt_mask( (unsigned long)dev->baseAddr , valw );
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -722,6 +737,7 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}					
 					spin_lock_irqsave(&dev->lock, flags);
 					valw = (unsigned short) ioc.val;
+					DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- SET_INT_EGDE: val=%02X\n", valw);
 					cpsdio_set_interrupt_edge( (unsigned long)dev->baseAddr , valw );
 					spin_unlock_irqrestore(&dev->lock, flags);
 
@@ -777,6 +793,36 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					break;
 
+///////////////////////// Ver.1.0.0 test interrupt
+		case IOCTL_CPSDIO_SET_CALLBACK_PROCESS:
+					{
+						if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+							return -EFAULT;
+						}
+						if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+							return -EFAULT;
+						}
+
+						spin_lock_irqsave(&dev->lock, flags);
+
+///////////////////////// debug ( Change find_task_by_vpid function, EXPORT_SYMBOL_GPL. (See kernel/pid.c) )
+						dev->int_callback = find_task_by_vpid(ioc.val);
+///////////////////////// debug
+
+///////////////////////// debug
+						DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- SET_CALLBACK_PROCESS: val=%08X, int_callback=%08lX\n", 
+							ioc.val,
+							(unsigned long)dev->int_callback);
+///////////////////////// debug
+
+						spin_unlock_irqrestore(&dev->lock, flags);
+					
+						if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+							return -EFAULT;
+						}
+					}
+					break;
+///////////////////////// debug
 	}
 
 	return 0;
@@ -803,18 +849,23 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	unsigned char __iomem *allocMem;
 	unsigned short product_id;
 	int iRet = 0;
+	int nodeNo = 0;// Ver.1.0.0 
+
+	nodeNo = iminor( inode );// Ver.1.0.0 
 
 	DEBUG_CPSDIO_OPEN(KERN_INFO"node %d\n",iminor( inode ) );
 
-	if ( inode->i_private != (PCPSDIO_DRV_FILE)NULL ){
-		dev = (PCPSDIO_DRV_FILE)inode->i_private;
-		filp->private_data =  (PCPSDIO_DRV_FILE)dev;
+	if (notFirstOpenFlg[nodeNo]) {		// Ver.1.0.0 初回オープンでなければ（segmentation fault暫定対策）
+		if ( inode->i_private != (PCPSDIO_DRV_FILE)NULL ){
+			dev = (PCPSDIO_DRV_FILE)inode->i_private;
+			filp->private_data =  (PCPSDIO_DRV_FILE)dev;
 
-		if( dev->ref ){
-			dev->ref++;
-			return 0;
-		}else{
-			return -EFAULT;
+			if( dev->ref ){
+				dev->ref++;
+				return 0;
+			}else{
+				return -EFAULT;
+			}
 		}
 	}
 
@@ -825,6 +876,7 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	}
 	dev = (PCPSDIO_DRV_FILE)filp->private_data;
 	inode->i_private = dev;
+	dev->int_callback = NULL;
 
 	dev->node = iminor( inode );
 	
@@ -864,6 +916,7 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 	spin_lock_init( &dev->lock );
 
 	dev->ref = 1;
+	notFirstOpenFlg[nodeNo]++;		// Ver.1.0.0 segmentation fault暫定対策フラグインクリメント
 
 	return 0;
 NOT_FOUND_DIO_PRODUCT:
@@ -951,6 +1004,7 @@ static int cpsdio_init(void)
 	int major;
 	int cnt;
 	struct device *devlp = NULL;
+	int	dioNum = 0; // Ver.1.0.0 
 
 	// CPS-MCS341 Device Init
 	contec_mcs341_controller_cpsDevicesInit();
@@ -997,7 +1051,13 @@ static int cpsdio_init(void)
 				unregister_chrdev_region( dev, cpsdio_max_devs );
 				return PTR_ERR(devlp);
 			}
+			dioNum++;// Ver.1.0.0 
 		}
+	}
+
+	// Ver.1.0.0 
+	if (dioNum) {
+		notFirstOpenFlg = (int *)kzalloc( sizeof(int) * dioNum, GFP_KERNEL );	// segmentation fault暫定対策フラグメモリ確保
 	}
 
 	return 0;
@@ -1014,6 +1074,8 @@ static void cpsdio_exit(void)
 
 	dev_t dev = MKDEV(cpsdio_major , 0 );
 	int cnt;
+
+	kfree(notFirstOpenFlg);		// Ver.1.0.0 segmentation fault暫定対策フラグメモリ解放
 
 	for( cnt = cpsdio_minor; cnt < ( cpsdio_minor + cpsdio_max_devs ) ; cnt ++){
 		if( contec_mcs341_device_IsCategory(cnt , CPS_CATEGORY_DIO ) ){

@@ -7,6 +7,10 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
+ *
+ * Ver 0.0.1 : first make.
+ * Ver 0.0.2 : digital filter added.
+ * Ver.0.0.3 : 
  */
 
 #include <linux/init.h>
@@ -20,11 +24,53 @@
 #include <linux/cdev.h>
 #include <asm/uaccess.h>
 
-#ifdef CONFIG_CONPROSYS_SDK
- #include "../include/cpsdio.h"
-#else
- #include "../../../include/cpsdio.h"
-#endif
+#include "cpsdio_spidevdata.h"
+#include "cpsdio.h"
+#include "cps_mc341.h"
+
+
+/**
+	@~English
+	@param address : offset address
+	@param type : byte access or word access
+	@param value : value
+	@~Japanese
+	@brief CPS-MC341-DSXのSPI ICへのSPI送信用パケットを作成します。
+	@param address : オフセットアドレス
+	@param type : バイトアクセスか　ワードアクセス
+	@param value : 値
+**/
+#define CPS_SET_MC341_DS1X_SPI_WRITE_PACKET( address, type, value ) \
+CPS_SPI_SET_PACKET(	\
+			PAGE_CPS_MC341_DSX_DIO,	\
+			address, \
+			CPS_SPI_ACCESS_WRITE, \
+			type, \
+			0,\
+			value \
+)
+
+/**
+	@~English
+	@param address : offset address
+	@param type : byte access or word access
+	@param value : value
+	@~Japanese
+	@brief CPS-MC341-DSXのSPI ICへのSPI受信用パケットを作成します。
+	@param address : オフセットアドレス
+	@param type : バイトアクセスか　ワードアクセス
+	@param value : 値
+**/
+#define CPS_SET_MC341_DS1X_SPI_READ_PACKET( address, type ) \
+		CPS_SPI_SET_PACKET(\
+			PAGE_CPS_MC341_DSX_DIO,\
+			address,\
+			CPS_SPI_ACCESS_READ,\
+			type,	\
+			0,\
+			(0x0000)	\
+)
+
 
 #define CPSDIOX_PACKET_SIZE	4
 #define CPSDIO_SPI_CHANNELS	1
@@ -32,27 +78,24 @@
 #define CPSDIO_SPI_MINOR 0
 #define CPSDIO_SPI_NUM_DEVS 1
 #define CPSDIO_SPI_DRIVER_NAME	"cpsdio"
-#define DRV_VERSION "0.0.1"
+#define DRV_VERSION "0.0.4"
 #define max_speed 6000000
 
 /*	Define the name of the device and sysfs class name*/
 static struct cdev cpsdio_spi_cdev;
 static struct class *cpsdio_spi_class = NULL;
 
-static int cpsdio_spi_major = 0;
-static int cpsdio_spi_minor = 0;
+static int cpsdio_spi_major = 0;	///< SPI Major ID
+static int cpsdio_spi_minor = 0;	///< SPI Minor ID
 
 struct CPSDIO_SPI_drvdata {
 	struct spi_device *spi;
 	struct mutex lock;
-	unsigned char tx[CPSDIOX_PACKET_SIZE] ____cacheline_aligned;
-	unsigned char rx[CPSDIOX_PACKET_SIZE] ____cacheline_aligned;
-	struct spi_transfer xfer ____cacheline_aligned;
 };
 
 static struct spi_board_info CPSDIO_SPI_info = {
 		.modalias = "CPSDIO_SPI",
-		.max_speed_hz = max_speed,	//60MHz
+		.max_speed_hz = max_speed,
 		.bus_num = 2,
 		.chip_select = 0,
 		.mode = SPI_MODE_2,
@@ -64,57 +107,242 @@ static int spi_chip_select = 0;
 module_param(spi_bus_num, int, S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR);
 module_param(spi_chip_select, int, S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR);
 
-static int cpsdio_open(struct inode *inode, struct file *filep) {
+static int cpsdio_open(struct inode *inode, struct file *filp) {
 
-	printk(KERN_INFO "Entered function: %s\n", __FUNCTION__);
+	pr_info("Entered function: %s\n", __FUNCTION__);
 	return 0;
 }
 
-static int cpsdio_write_output(struct spi_device *spi, const void *buf, size_t len) {
+/**
+	@~English
+	@brief SPI Write function with CONTEC FPGA
+	@param spi : SPI structure
+	@param address : offset address
+	@param size : data size
+	@param value : value
+	@return true : 0, false : otherwise
+	@~Japanese
+	@brief CONTECのFPGAに対するSPI書き込み関数です。
+	@param spi : SPI構造体
+	@param address : オフセットアドレス
+	@param size : サイズ
+	@param value : 値
+	@return 成功: 0 , 失敗: それ以外
+**/
+static long cpsdio_spi_write(struct spi_device *spi, int address, int size ,unsigned short value ) {
 	int status;
-	char *a;
+	int access_type;
+	CPS_SPI_FORMAT tx;
 
-	status = spi_write(spi, buf, len);
-	if (status < 0) {
-		pr_warning("FAILURE: spi_write() failed with status %d\n", status);
+	// サイズ選択
+	switch( size ){
+	case 1 :
+		access_type = CPS_SPI_ACCESS_TYPE_BYTE;
+		break;
+	case 2 :
+		access_type = CPS_SPI_ACCESS_TYPE_WORD;
+		break;
+	default :
+		pr_err("FAILURE: %s failed \n", __FUNCTION__);
 		return -ENODEV;
-	} else {
-		pr_info("SUCCESS! %s with status %d\n", __FUNCTION__,status);
-		a = (char *)buf;
-		pr_info("write_output buf:%d\n", *a);
-		return 0;
 	}
+
+	tx.value = cpu_to_be32(
+			CPS_SET_MC341_DS1X_SPI_WRITE_PACKET(
+					address,
+					access_type,
+					value
+				)
+			);
+//	pr_info("tx.value=%lx\n",tx.value);
+//	pr_info("address %x value %lx, size %d", address, tx.value, sizeof(tx));
+
+	status = spi_write(spi, (const void *)&(tx.array[0]), sizeof(tx));
+
+	if (status < 0) {
+		pr_err("FAILURE: %s failed \n", __FUNCTION__);
+		return -ENODEV;
+	}
+
+	return 0;
+}
+
+/**
+	@~English
+	@brief SPI Read function with CONTEC FPGA
+	@param spi : SPI structure
+	@param address : offset address
+	@param size : data size
+	@param value : value
+	@return true : 0, false : otherwise
+	@~Japanese
+	@brief CONTECのFPGAに対するSPI読み込み関数です。
+	@param spi : SPI構造体
+	@param address : オフセットアドレス
+	@param size : サイズ
+	@param value : 値
+	@return 成功: 0 , 失敗: それ以外
+**/
+static long cpsdio_spi_read(struct spi_device *spi, int address, int size ,unsigned short *value ) {
+	int status;
+	int access_type;
+	CPS_SPI_FORMAT rx;
+
+	switch( size ){
+	case 1 :
+		access_type = CPS_SPI_ACCESS_TYPE_BYTE;
+		break;
+	case 2 :
+		access_type = CPS_SPI_ACCESS_TYPE_WORD;
+		break;
+	default :
+		pr_err("FAILURE: %s failed \n", __FUNCTION__);
+		return -ENODEV;
+	}
+	rx.value = cpu_to_be32(
+			CPS_SET_MC341_DS1X_SPI_READ_PACKET(
+					address,
+					access_type
+			)
+	);
+
+//	pr_info("command %x %x, size %x", rx.COM_VAL.Frame.command[0], rx.COM_VAL.Frame.command[1], sizeof(rx.COM_VAL.Frame.command));
+//	pr_info("value %x %x size %x", rx.COM_VAL.value[0], rx.COM_VAL.value[1], sizeof(rx.COM_VAL.value));
+
+	status = spi_write_then_read(
+			spi,
+			&(rx.COM_VAL.Frame.command[0]),
+			sizeof(rx.COM_VAL.Frame.command),
+			&(rx.COM_VAL.value[0]),
+			sizeof(rx.COM_VAL.value)
+	);
+
+	if (status < 0) {
+		pr_err("FAILURE: %s failed \n", __FUNCTION__);
+		return -ENODEV;
+	}
+
+	switch( size ){
+	case 1:
+		*value = rx.COM_VAL.value[1];
+		break;
+	case 2:
+		*value = ( rx.COM_VAL.value[0] << 8 ) | rx.COM_VAL.value[1];
+		break;
+	}
+
+	return 0;
+}
+
+/**
+	@~English
+	@brief This function set Digital Output Data.
+	@param spi : SPI structure
+	@param port : Port Number
+	@param size : data size
+	@param value : value
+	@return true : 0, false : otherwise
+	@~Japanese
+	@brief デジタル出力のデータを設定する関数
+	@param spi : SPI structure
+	@param port : ポート番号
+	@param size : データサイズ
+	@param value : 値
+	@return 成功: 0 , 失敗: それ以外
+**/
+static long cpsdio_write_output(struct spi_device *spi, int port, int size ,unsigned short value ) {
+
+	int address = OFFSET_OUTPUT0_CPS_MC341_DSX + port;
+	return cpsdio_spi_write(spi, address, size ,value );
 }
 EXPORT_SYMBOL_GPL(cpsdio_write_output);
 
-static int cpsdio_read_input(struct spi_device *spi, unsigned char buf[], size_t len) {
-	int status;
-	int dbg_cnt = 0;
-	unsigned char rx_cmd[]={0x01, 0x04};
-	unsigned char rx_val[]={0x00, 0x00};
+/**
+	@~English
+	@brief This function get Digital Input Data.
+	@param spi : SPI structure
+	@param port : Port Number
+	@param size : data size
+	@param value : value
+	@return true : 0, false : otherwise
+	@~Japanese
+	@brief デジタル入力のデータを取得する関数
+	@param spi : SPI structure
+	@param port : ポート番号
+	@param size : データサイズ
+	@param value : 値
+	@return 成功: 0 , 失敗: それ以外
+**/
+static long cpsdio_read_input(struct spi_device *spi, int port, int size ,unsigned short *value ) {
 
-		for(dbg_cnt = 0;dbg_cnt < 2; dbg_cnt++){
-			pr_info("read_input_1 %d buf:%X\n", dbg_cnt,rx_val[dbg_cnt]);
-		}
-	status = spi_write_then_read(spi,rx_cmd, sizeof(rx_cmd), rx_val, sizeof(rx_val));
-	if (status < 0) {
-		pr_warning("FAILURE: %s failed with status %d\n", __FUNCTION__,status);
-		return -ENODEV;
-	} else {
-		pr_info("SUCCESS! %s with status %d\n", __FUNCTION__,status);
-		for(dbg_cnt = 0;dbg_cnt < 2; dbg_cnt++){
-			pr_info("read_input_2 %d buf:%X\n", dbg_cnt,rx_val[dbg_cnt]);
-		}
-		return rx_val[1];
-	}
+	int address = OFFSET_INPUT0_CPS_MC341_DSX + port;
+	return cpsdio_spi_read(spi, address, size ,value );
 }
-EXPORT_SYMBOL_GPL(cpsdio_read_input);
 
-static int cpsdio_close(struct inode *inode, struct file *filep) {
-	printk(KERN_INFO "Entered function: %s\n", __FUNCTION__);
+static int cpsdio_close(struct inode *inode, struct file *filp) {
+	pr_info("Entered function: %s\n", __FUNCTION__);
 	return 0;
 }
 
+/**
+	@~English
+	@brief This function get Digital Filter.
+	@param spi : SPI structure
+	@param value : digital filter value.
+	@return true : 0, false : otherwise
+	@~Japanese
+	@brief デジタル入力のデジタルフィルタを取得する関数
+	@param spi : SPI構造体
+	@param value : デジタルフィルタの取得値
+	@return 成功: 0 , 失敗: それ以外
+**/
+static long cpsdio_get_digital_filter( struct spi_device *spi, unsigned char *value )
+{
+	long lRet = 0;
+	int address = OFFSET_DIGITALFILTER_CPS_MC341_DSX;
+	unsigned short valw;
+
+	lRet = cpsdio_spi_read(spi, address, 1 ,&valw );
+
+	if( lRet ) return lRet;
+
+	*value = valw;
+	return 0;
+}
+
+/**
+	@~English
+	@brief This function set Digital Filter.
+	@param spi : SPI structure
+	@param value : digital filter value.
+	@return true : 0, false : otherwise
+	@~Japanese
+	@brief デジタル入力のデジタルフィルタを設定する関数
+	@param spi : SPI構造体
+	@param value : デジタルフィルタの取得値
+	@return 成功: 0 , 失敗: それ以外
+**/
+static long cpsdio_set_digital_filter( struct spi_device *spi, unsigned char value )
+{
+	int address = OFFSET_DIGITALFILTER_CPS_MC341_DSX;
+
+	return cpsdio_spi_write(spi, address, 1 ,(unsigned short)value );
+}
+
+/**
+	@~English
+	@brief cpsdio_ioctl
+	@param filp : struct file pointer
+	@param cmd : iocontrol command
+	@param arg : argument
+	@return Success 0, Failed:otherwise 0. (see errno.h)
+	@~Japanese
+	@brief cpsdio_ioctl
+	@param filp : file構造体ポインタ
+	@param cmd : I/O コントロールコマンド
+	@param arg : 引数
+	@return 成功:0 , 失敗:0以外 (errno.h参照)
+**/
 static long cpsdio_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
 	struct device *dev;
 	struct spi_device *spi;
@@ -122,14 +350,16 @@ static long cpsdio_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct CPSDIO_SPI_drvdata *data;
 	char str[128];
 
-/*	Debugging data*/
-	unsigned char tx[]={0x01, 0x2C, 0x00, 0x00};
-	unsigned char rx[]={0x01, 0x04, 0x00, 0x00};
+	long lRet = 0;
+	unsigned char valb = 0;
+	unsigned short valw = 0;
 
 	struct cpsdio_ioctl_arg ioc;
+
 	master = spi_busnum_to_master(CPSDIO_SPI_info.bus_num);
 	snprintf(str, sizeof(str), "%s.%u", dev_name(&master->dev),
 			CPSDIO_SPI_info.chip_select);
+
 	dev = bus_find_device_by_name(&spi_bus_type, NULL, str);
 	spi = to_spi_device(dev);
 	data = (struct CPSDIO_SPI_drvdata *)spi_get_drvdata(spi);
@@ -145,11 +375,12 @@ static long cpsdio_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				return -EFAULT;
 			}
 			mutex_lock( &data->lock );
-
-			ioc.val = (unsigned int)cpsdio_read_input(spi,rx,sizeof(&rx));
-
-			printk(KERN_INFO "ioc.val = %X\n",ioc.val);
+			lRet = cpsdio_read_input(spi, ioc.port, 1, &valw);
+			ioc.val = valw;
 			mutex_unlock( &data->lock );
+
+			if( lRet )	return lRet;
+
 			if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
 				return -EFAULT;
 			}
@@ -162,12 +393,43 @@ static long cpsdio_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				return -EFAULT;
 			}
 			mutex_lock( &data->lock );
-			tx[3] = (unsigned char)ioc.val;
-
-			cpsdio_write_output(spi, (const void *)&tx, sizeof(&tx));
-
-			printk(KERN_INFO "tx[0]= %X\n,tx[1]=%X\n,tx[2]=%X\n,tx[3]=%X\n",tx[0],tx[1],tx[2],tx[3]);
+			lRet = cpsdio_write_output(spi, ioc.port, 1, ioc.val);
 			mutex_unlock( &data->lock );
+
+			if( lRet ) return lRet;
+
+			break;
+		case IOCTL_CPSDIO_SET_FILTER:
+			if(!access_ok(VERITY_READ, (void __user *)arg, _IOC_SIZE(cmd) ) ) {
+				return -EFAULT;
+			}
+
+			if (copy_from_user(&ioc, (int __user *) arg, sizeof(ioc))) {
+				return -EFAULT;
+			}
+			mutex_lock(&data->lock);
+			lRet = cpsdio_set_digital_filter(spi, (unsigned char)ioc.val);
+			mutex_unlock(&data->lock);
+			if( lRet ) return lRet;
+			break;
+
+		case IOCTL_CPSDIO_GET_FILTER:
+			if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ) {
+				return -EFAULT;
+			}
+			if (copy_from_user(&ioc, (int __user *) arg, sizeof(ioc))) {
+				return -EFAULT;
+			}
+			mutex_lock(&data->lock);
+			lRet = cpsdio_get_digital_filter(spi,&valb);
+			ioc.val = valb;
+			mutex_unlock(&data->lock);
+
+			if( lRet ) return lRet;
+
+			if (copy_to_user((int __user *) arg, &ioc, sizeof(ioc))) {
+				return -EFAULT;
+			}
 			break;
 	}
 	return 0;
@@ -184,19 +446,13 @@ static int CPSDIO_SPI_register_dev(void) {
 	int ret = 0;
 	struct device *devlp = NULL;
 
-	printk(KERN_INFO "Entered function: %s\n",__FUNCTION__);
-
 /*	Registration of character device number*/
 	ret = alloc_chrdev_region(&dev, 0, CPSDIO_SPI_NUM_DEVS,
 			CPSDIO_SPI_DRIVER_NAME);
-
 	if (ret < 0) {
-		printk(" cpsdio : driver init. devices error %d\n",
-				CPSDIO_SPI_NUM_DEVS);
-		printk(KERN_ERR "alloc_chrdev_region failed.\n");
+		pr_err( "alloc_chrdev_region failed.\n");
 		return ret;
 	}
-
 	cpsdio_spi_major = MAJOR(dev);
 	cpsdio_spi_minor = MINOR(dev);
 
@@ -206,8 +462,7 @@ static int CPSDIO_SPI_register_dev(void) {
 	cpsdio_spi_cdev.ops = &cpsdio_spi_fops;
 	ret = cdev_add(&cpsdio_spi_cdev, dev, CPSDIO_SPI_NUM_DEVS);
 	if (ret) {
-		printk(" cpsdio : driver init. devices error %d\n",
-				CPSDIO_SPI_NUM_DEVS + 1);
+		pr_err(" cpsdio : driver init. devices error \n");
 		unregister_chrdev_region(dev, CPSDIO_SPI_NUM_DEVS);
 		return ret;
 	}
@@ -215,8 +470,7 @@ static int CPSDIO_SPI_register_dev(void) {
 /*	Creating a sysfs (/ sys) class*/
 	cpsdio_spi_class = class_create(THIS_MODULE, CPSDIO_SPI_DRIVER_NAME);
 	if (IS_ERR(cpsdio_spi_class)) {
-		printk(" cpsdio : driver init. devices error %d\n",
-				CPSDIO_SPI_NUM_DEVS + 2);
+		pr_err(" cpsdio : driver init. devices error \n");
 		cdev_del(&cpsdio_spi_cdev);
 		unregister_chrdev_region(dev, CPSDIO_SPI_NUM_DEVS);
 		return PTR_ERR(cpsdio_spi_class);
@@ -226,13 +480,11 @@ static int CPSDIO_SPI_register_dev(void) {
 	devlp = device_create(cpsdio_spi_class, NULL, dev, NULL,
 			CPSDIO_SPI_DRIVER_NAME"%d", 0);
 	if (IS_ERR(devlp)) {
-		printk(" cpsdio : driver init. devices error %d\n",
-				CPSDIO_SPI_NUM_DEVS + 3);
+		pr_err(" cpsdio : driver init. devices error \n");
 		cdev_del(&cpsdio_spi_cdev);
 		unregister_chrdev_region(dev, CPSDIO_SPI_NUM_DEVS);
 		return PTR_ERR(devlp);
 	}
-
 	return 0;
 }
 
@@ -244,25 +496,16 @@ static int CPSDIO_SPI_probe(struct spi_device *spi) {
 	spi->mode = CPSDIO_SPI_info.mode;
 	spi->bits_per_word = 8;
 	if (spi_setup(spi)) {
-		printk(KERN_ERR "spi_setup returned error\n");
+		pr_err( "spi_setup returned error\n");
 		return -ENODEV;
 	}
 	data = kzalloc(sizeof(struct CPSDIO_SPI_drvdata), GFP_KERNEL);
 	if (data == NULL) {
-		printk(KERN_ERR "%s: no memory\n", __func__ );
+		pr_err( "%s: no memory\n", __func__ );
 		return -ENODEV;
 	}
 	data->spi = spi;
-
 	mutex_init(&data->lock);
-
-	data->xfer.tx_buf = data->tx;
-	data->xfer.rx_buf = data->rx;
-	data->xfer.bits_per_word = 8;
-	data->xfer.len = CPSDIOX_PACKET_SIZE;
-	data->xfer.cs_change = 0;
-	data->xfer.delay_usecs = 0;
-	data->xfer.speed_hz = max_speed;
 
 /*	Save CPSDIO_SPI_drvdata structure*/
 	spi_set_drvdata(spi, data);
@@ -270,38 +513,45 @@ static int CPSDIO_SPI_probe(struct spi_device *spi) {
 /*	Registration of the device node*/
 	CPSDIO_SPI_register_dev();
 
-	printk(KERN_INFO "CPSDIO_SPI probe\n");
+	pr_info( "cpsdio_spi driver registered\n");
+
 	return 0;
 }
 
 static int CPSDIO_SPI_remove(struct spi_device *spi) {
 	struct CPSDIO_SPI_drvdata *data;
+//	unsigned char tx[]={0x01, 0x2C, 0x00, 0x00};
+
 	data = (struct CPSDIO_SPI_drvdata *) spi_get_drvdata(spi);
 
+	/*	DIO LED initialization processing*/
+	cpsdio_write_output(spi, 0, 2, 0x0000 );
+
 	kfree(data);
-	printk(KERN_INFO "CPSDIO_SPI removed\n");
+	pr_info( "cpsdio_spi driver removed\n");
 
 	return 0;
 }
 
 static struct spi_device_id CPSDIO_SPI_id[] = {
 		{ "CPSDIO_SPI", 0 },
-		{ }, };
+		{ },
+};
 MODULE_DEVICE_TABLE(spi, CPSDIO_SPI_id);
 
 static struct spi_driver CPSDIO_SPI_driver = {
 		.driver = {
 				.name =	CPSDIO_SPI_DRIVER_NAME,
-				.owner = THIS_MODULE, },
-				.id_table =	CPSDIO_SPI_id,
-				.probe = CPSDIO_SPI_probe,
-				.remove = CPSDIO_SPI_remove,
+				.owner = THIS_MODULE,
+		},
+		.id_table =	CPSDIO_SPI_id,
+		.probe = CPSDIO_SPI_probe,
+		.remove = CPSDIO_SPI_remove,
 };
 
 static void spi_remove_device(struct spi_master *master, unsigned int cs) {
 	struct device *dev;
 	char str[128];
-
 
 	snprintf(str, sizeof(str), "%s.%u", dev_name(&master->dev), cs);
 /*	Find SPI device*/
@@ -309,7 +559,7 @@ static void spi_remove_device(struct spi_master *master, unsigned int cs) {
 
 /*	Delete any SPI device*/
 	if (dev) {
-		printk(KERN_INFO "Delete %s\n", str);
+		pr_info( "Delete %s\n", str);
 		device_del(dev);
 	}
 }
@@ -325,21 +575,20 @@ static int CPSDIO_SPI_init(void) {
 
 	master = spi_busnum_to_master(CPSDIO_SPI_info.bus_num);
 	if (!master) {
-		printk( KERN_ERR "spi_busnum_to_master returned NULL\n");
-		spi_unregister_driver(&CPSDIO_SPI_driver);
-		return -ENODEV;
+		pr_err( "spi_busnum_to_master returned NULL\n");
+		goto init_err;
 	}
-/*	Remove because spidev2.0 in the initial state is occupying*/
+/*	Remove because spidev 2.0 in the initial state is occupying*/
 	spi_remove_device(master, CPSDIO_SPI_info.chip_select);
 	spi_device = spi_new_device(master, &CPSDIO_SPI_info);
 	if (!spi_device) {
-		printk(KERN_ERR "spi_new_device returned NULL\n" );
-		spi_unregister_driver(&CPSDIO_SPI_driver);
-		return -ENODEV;
+		pr_err( "spi_new_device returned NULL\n" );
+		goto init_err;
 	}
-	printk(KERN_INFO "Entered function: %s\n",__FUNCTION__);
-
 	return 0;
+init_err:
+	spi_unregister_driver(&CPSDIO_SPI_driver);
+	return -ENODEV;
 }
 module_init(CPSDIO_SPI_init);
 
@@ -347,43 +596,24 @@ static void CPSDIO_SPI_exit(void) {
 	struct spi_master *master;
 	dev_t dev_exit;
 
-	char str[128];
-	struct device *dev;
-	struct spi_device *spi;
-	struct CPSDIO_SPI_drvdata *data;
-
-/*	Debugging data*/
-	unsigned char tx[]={0x01, 0x2C, 0x00, 0x00};
-
 	master = spi_busnum_to_master(CPSDIO_SPI_info.bus_num);
-
-/*	DIO LED initialization processing*/
-	snprintf(str, sizeof(str), "%s.%u", dev_name(&master->dev),
-			CPSDIO_SPI_info.chip_select);
-	dev = bus_find_device_by_name(&spi_bus_type, NULL, str);
-	spi = to_spi_device(dev);
-	data = (struct CPSDIO_SPI_drvdata *)spi_get_drvdata(spi);
-	cpsdio_write_output(spi, (const void *)&tx, sizeof(&tx));
 
 /*	Delete SPI devices*/
 	if (master) {
 		spi_remove_device(master, CPSDIO_SPI_info.chip_select);
 	} else {
-		printk( KERN_INFO "CPSDIO_SPI remove error\n");
+		pr_err( "CPSDIO_SPI remove error\n");
 	}
 	spi_unregister_driver(&CPSDIO_SPI_driver);
 
 /*	And deletion of the device, deletion of the class*/
 	dev_exit = MKDEV(cpsdio_spi_major, cpsdio_spi_minor);
-	printk( KERN_INFO "major(%d) minor(%d)\n",cpsdio_spi_major , cpsdio_spi_minor);
-
 	device_destroy(cpsdio_spi_class, dev_exit);
 	class_destroy(cpsdio_spi_class);
 
 /*	Deleting a character device, the return of the character device number*/
 	cdev_del(&cpsdio_spi_cdev);
 	unregister_chrdev_region(dev_exit, CPSDIO_SPI_NUM_DEVS);
-	printk( KERN_INFO "Exit function: %s\n",__FUNCTION__);
 }
 module_exit(CPSDIO_SPI_exit);
 

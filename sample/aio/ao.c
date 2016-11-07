@@ -40,7 +40,7 @@ int main(int argc, char *argv[]){
 	long ao_dat[4]={0x8000,0x8000,0x8000,0x8000};
 	double ao_dat_ex[4]={0.0,0.0,0.0,0.0};
 
-	unsigned char devName[32];
+	unsigned char devName[32]="";
 	int cnt;
 	double clk=100.0;
 	long lRet;
@@ -65,9 +65,9 @@ int main(int argc, char *argv[]){
 		 	printf(" example ) ./ao cpsaio0 singleEx 2 3.00 1 \n");
 			return 0;		
 		}
-		strcpy(devName, argv[1]);
+		strcat(devName, argv[1]);
 	}else{
-		strcpy(devName, "cpsaio0");
+		strcat(devName, "cpsaio0");
 	}
 
 	if( argc > 2 ){
@@ -140,18 +140,18 @@ int main(int argc, char *argv[]){
 
 	if( isMulti == 0 ){
 		/* SingleAo or SingleAoEx Sample */
-		for( cnt = 0; cnt < ch;cnt ++ ){
+		//for( cnt = 0; cnt < ch;cnt ++ ){
 			if( isEx == 0 ){
 				/* SingleAo */
-				ContecCpsAioSingleAo(Id, cnt, ao_dat[cnt] );
-				printf("AO [%d] = %lx\n",cnt,ao_dat[cnt]);
+				ContecCpsAioSingleAo(Id, ch, ao_dat[ch] );
+				printf("AO [%d] = %lx\n",ch,ao_dat[ch]);
 			}
 			else{
 				/* SingleAoEx */
-				ContecCpsAioSingleAoEx(Id, cnt, ao_dat_ex[cnt] );
-				printf("AO [%d] = %lf\n",cnt,ao_dat_ex[cnt]);
+				ContecCpsAioSingleAoEx(Id, ch, ao_dat_ex[ch] );
+				printf("AO [%d] = %lf\n",ch,ao_dat_ex[ch]);
 			}
-		}
+		//}
 	}else{
 		/* MultiAo or MultiAoEx Sample */
 		if( isEx == 0 )	/* MultiAo */

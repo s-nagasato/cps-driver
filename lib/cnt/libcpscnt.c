@@ -32,6 +32,8 @@
  #include "libcpscnt.h"
 #endif
 
+#define CONTEC_CPSCNT_LIB_VERSION	"0.9.3"
+
 #include <stdio.h>
 
 typedef struct __contec_cps_cnt_int_callback__
@@ -457,7 +459,7 @@ unsigned long ContecCpsCntGetZLogic( short Id, short ChNo, short *Logic )
 	@param SigType : 信号タイプ
 	@return 成功: CNT_ERR_SUCCESS
 **/
-unsigned long ContecCpsCntSelectGetChannelSignal( short Id, short ChNo, short *SigType )
+unsigned long ContecCpsCntGetChannelSignal( short Id, short ChNo, short *SigType )
 {
 	struct cpscnt_ioctl_arg	arg;
 
@@ -769,5 +771,98 @@ unsigned long ContecCpsCntReadStatus( short Id, short ChNo, short *Status )
 
 	return CNT_ERR_SUCCESS;
 }
-////////////////////////////////////////// Ver.0.9.2
+////////////////////////////////////////// Ver.0.9.3
+
+/**
+	@~English
+	@brief CNT Library read Digital Input.
+	@param Id : Device ID
+	@param ChNo : Channels
+	@param InData :　Digital Input Bit
+	@return Success: CNT_ERR_SUCCESS
+	@~Japanese
+	@brief カウンタデバイスの入力を読み出します。
+	@param Id : デバイスID
+	@param ChNo : チャネル番号
+	@param InData : デジタル入力ビット
+	@return 成功: CNT_ERR_SUCCESS
+**/
+unsigned long ContecCpsCntInputDIBit( short Id, short ChNo, short *InData)
+{
+	short Status;
+
+	ContecCpsCntReadStatus( Id, ChNo, &Status );
+
+	*InData = ( Status & CNT_STATUS_BIT_U );
+
+	return CNT_ERR_SUCCESS;
+}
+
+/**
+	@~English
+	@brief CNT Library sets the compare register of matching count.
+	@param Id : Device ID
+	@param RegNo : compare register
+	@param Count : match Count
+	@param hWnd :　Reserved.
+	@return Success: CNT_ERR_SUCCESS
+	@~Japanese
+	@brief カウンタデバイスのカウント一致による比較レジスタの設定を行ないます。
+	@param Id : デバイスID
+	@param ChNo : チャネル番号
+	@param RegNo : 比較レジスタ番号
+	@param Count :　一致さ競るためのカウント
+	@param hWnd :　ウィンドウハンドル( 未実装 )
+	@return 成功: CNT_ERR_SUCCESS
+**/
+unsigned long ContecCpsCntNotifyCountUp( short Id , short ChNo , short RegNo , unsigned long Count , int hWnd )
+{
+
+	struct cpscnt_ioctl_arg	arg;
+
+	arg.ch = ChNo;
+	arg.val = Count;
+	ioctl( Id, IOCTL_CPSCNT_SET_COMPARE_REG, &arg );
+
+	return CNT_ERR_SUCCESS;
+
+}
+
+/**
+	@~English
+	@brief CNT Library gets driver and library version.
+	@param Id : Device ID
+	@param libVer : library version
+	@param drvVer : driver version
+	@return Success: CNT_ERR_SUCCESS
+	@~Japanese
+	@brief カウンタデバイスのカウント一致による比較レジスタの設定を行ないます。
+	@param Id : デバイスID
+	@param libVer : ライブラリバージョン
+	@param drvVer : ドライババージョン
+	@return 成功: CNT_ERR_SUCCESS
+**/
+unsigned long ContecCpsCntGetVersion( short Id , unsigned char libVer[] , unsigned char drvVer[] )
+{
+
+	struct cpscnt_ioctl_arg	arg;
+	int len;
+
+
+	ioctl( Id, IOCTL_CPSCNT_GET_DRIVER_VERSION, &arg );
+
+	len = sizeof( arg.str ) / sizeof( arg.str[0] );
+	memcpy(drvVer, arg.str, len);
+//	strcpy_s(drvVer, arg.str);
+
+	len = sizeof( CONTEC_CPSCNT_LIB_VERSION ) /sizeof( unsigned char );
+	memcpy(libVer, CONTEC_CPSCNT_LIB_VERSION, len);	
+//	strcpy_s(libVer, CONTEC_CPSCNT_LIB_VERSION);
+
+	return CNT_ERR_SUCCESS;
+
+}
+
+////////////////////////////////////////// Ver.0.9.3
+
 

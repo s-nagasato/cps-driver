@@ -1,5 +1,8 @@
 #include "cps_def.h"
 
+#define DIO_POWERSUPPLY_EXTERNAL	0	///< 外部電源
+#define DIO_POWERSUPPLY_INTERNAL	1	///< 内部電源
+
 #define DIO_ERR_SUCCESS		0
 #define DIO_ERR_INI_RESOURCE	1
 #define DIO_ERR_INI_INTERRUPT	2

@@ -32,7 +32,7 @@
  #include "libcpscnt.h"
 #endif
 
-#define CONTEC_CPSCNT_LIB_VERSION	"0.9.3"
+#define CONTEC_CPSCNT_LIB_VERSION	"0.9.4"
 
 #include <stdio.h>
 
@@ -840,12 +840,13 @@ unsigned long ContecCpsCntNotifyCountUp( short Id , short ChNo , short RegNo , u
 	@param Id : デバイスID
 	@param libVer : ライブラリバージョン
 	@param drvVer : ドライババージョン
+	@note Ver.0.9.4 Change from cpsaio_ioctl_arg to cpsaio_ioctl_string_arg.
 	@return 成功: CNT_ERR_SUCCESS
 **/
 unsigned long ContecCpsCntGetVersion( short Id , unsigned char libVer[] , unsigned char drvVer[] )
 {
 
-	struct cpscnt_ioctl_arg	arg;
+	struct cpscnt_ioctl_string_arg	arg;
 	int len;
 
 

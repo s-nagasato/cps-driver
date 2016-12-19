@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.0.12"
+#define DRV_VERSION	"1.0.13"
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("CONTEC CONPROSYS BASE Driver");
@@ -98,6 +98,11 @@ MODULE_VERSION(DRV_VERSION);
 #define DEBUG_SYSTEM_INIT_WRITE_REG(fmt...)        do { } while (0)
 #endif
 
+#if 0
+#define DEBUG_SYSTEM_STATUS_READ_REG(fmt...)        printk(fmt)
+#else
+#define DEBUG_SYSTEM_STATUS_READ_REG(fmt...)        do { } while (0)
+#endif
 
 #if 0
 #define DEBUG_RESET_WRITE_REG(fmt...)        printk(fmt)
@@ -396,7 +401,7 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_setPinMode);
 **/
 static unsigned char contec_mcs341_controller_setSystemInit(void)
 {
-	contec_mcs341_outb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, mcs341_systeminit_reg );
+	contec_mcs341_outb( CPS_CONTROLLER_MCS341_SYSTEMINIT_WADDR, mcs341_systeminit_reg );
 	DEBUG_SYSTEM_INIT_WRITE_REG(KERN_INFO"mcs341_systeminit_write_reg %x \n", mcs341_systeminit_reg);
 	return 0;
 }
@@ -654,6 +659,23 @@ static unsigned char contec_mcs341_controller_getGroupId(void){
 	return CPS_MCS341_ROTARYSW_GROUPID(valb);
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getGroupId);
+
+/**
+	@~English
+	@brief MCS341 Controller's gets system register.
+	@~Japanese
+	@brief MCS341 ControllerのSystemStatusを取得する関数
+**/
+static unsigned char contec_mcs341_controller_getSystemStatus(void)
+{
+	unsigned char valb = 0;
+	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMSTATUS_RADDR, &valb );
+	DEBUG_SYSTEM_STATUS_READ_REG(KERN_INFO"mcs341_systemstatus_read_reg %x \n", valb);
+	return valb;
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_getSystemStatus);
+
+
 /**
 	@~English
 	@brief The function get Connecting Number in MCS341 Controller.
@@ -761,75 +783,6 @@ static unsigned char contec_mcs341_controller_getDiValue( void ){
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDiValue);
 
-//-------------------------- Timer Function ------------------------
-
-// 2016.02.17 halt / shutdown button timer function
-/**
-	@~English
-	@brief MCS341 Controller's timer function
-	@note 17, Feb, 2016 : halt / shutdown button timer function
-	@param arg : argument
-	@~Japanese
-	@brief MCS341 コントローラ用タイマー関数
-	@note 2016.02.17 : halt / shutdown ボタン処理用タイマー関数として実装
-	@note 2016.06.10 : reset_button_check_modeのとき、gpio87から入力信号が入ると orderly_poweroffが走ってしまう問題を修正
-	@param arg : 引数
-**/
-void mcs341_controller_timer_function(unsigned long arg)
-{
-
-	struct timer_list *tick = (struct timer_list *) arg;
-	int cnt;
-
-	// Err LED 追加 Ver.1.0.8
-	for( cnt = CPS_MCS341_ARRAYNUM_LED_PWR; cnt < CPS_MCS341_MAX_LED_ARRAY_NUM; cnt ++ ){
-
-		if( ledEnable[cnt] ){
-			if( led_timer_count[cnt] >= 50 ){ // about 1 sec over
-				ledState[cnt] ^= 0x01;	// 点滅
-				contec_mcs341_controller_setLed( (1 << cnt) , ledState[cnt] );
-				led_timer_count[cnt] = 0;
-			}
-			else
-				led_timer_count[cnt] ++;
-		}
-	}
-
-	//Ver 1.0.10 [bugfix] 2016.06.10
-	if( !reset_button_check_mode ){
-		if( gpio_get_value(CPS_CONTROLLER_MCS341_RESET_PIN) ){
-			// Ver.1.0.9
-			// At first pushed button, LVDS power and systeminit interrupt line off!!
-			if(reset_count == 0 && fpga_ver > 1 ){
-				// LVDS OFF
-				mcs341_fpga_reset_reg &= CPS_MCS341_RESET_SET_LVDS_PWR;
-				contec_mcs341_controller_setFpgaResetReg();
-
-				// INTERRUPT LINE OFF
-				mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETINTERRUPT;
-				contec_mcs341_controller_setSystemInit();
-			}
-
-			reset_count += 1;
-			if( reset_count > (5 * 50) ){ //about 5 sec over
-				printk(KERN_INFO"RESET !\n");
-				gpio_direction_output(CPS_CONTROLLER_MCS341_RESET_POUT, 1);
-			}
-		}else{
-			if( reset_count > 0 ){
-				orderly_poweroff(false);
-			}
-			reset_count = 0;
-		}
-	}
-
-	if( watchdog_timer_msec ){
-		contec_mcs341_controller_clear_watchdog();
-	}
-
-	mod_timer(tick, jiffies + CPS_CONTROLLER_MCS341_TICK );
-}
-
 //-------------------------- Init Function ------------------------
 
 /**
@@ -879,10 +832,15 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 	unsigned int timeout = 0;
 
 	//cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
-	contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
+	//contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
+	valb = contec_mcs341_controller_getSystemStatus();
 	valb = valb & 0x0F;
 
-	if( valb != 0x03 && valb != 0x08 && valb != 0x0c ){
+	if(
+			valb != ( CPS_MCS341_SYSTEMSTATUS_RESETBUSY | CPS_MCS341_SYSTEMSTATUS_INITBUSY )  &&
+			valb != CPS_MCS341_SYSTEMSTATUS_INIT_END &&
+			valb != ( CPS_MCS341_SYSTEMSTATUS_INIT_END | CPS_MCS341_SYSTEMSTATUS_INTERRUPT_END ))
+	{
 		printk(KERN_ERR"cps-driver :[ERROR:INIT] FPGA +3Hex Read %x (Hex)!! Check FPGA Hardware!! \n", valb);
 		return -EIO;
 	}
@@ -897,17 +855,18 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 		contec_mcs341_controller_setFpgaResetReg();
 	}
 
-	if( CPS_MCS341_SYSTEMINIT_BUSY( valb ) ){
+	if( CPS_MCS341_SYSTEMSTATUS_BUSY( valb ) ){
 
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETRESET;
 		contec_mcs341_controller_setSystemInit();
 			do{
 			contec_cps_micro_sleep(5);
 //		cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
-			contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
+			//contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
+			valb = contec_mcs341_controller_getSystemStatus();
 			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
 			timeout ++;
-		}while( !(valb & CPS_MCS341_SYSTEMINIT_INIT_END) );
+		}while( !(valb & CPS_MCS341_SYSTEMSTATUS_INIT_END) );
 
 		/*
 			When many devices was connected more than 15, getDeviceNumber gets 14 values.
@@ -929,10 +888,11 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 		do{
 			contec_cps_micro_sleep(5);
 //		cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
-			contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
+//		contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
+			valb = contec_mcs341_controller_getSystemStatus();
 			if( timeout >= CPS_DEVICE_INIT_TIMEOUT ) return -ENXIO;
 			timeout ++; 
-		}while( !(valb & CPS_MCS341_SYSTEMINIT_INTERRUPT_END)  );
+		}while( !(valb & CPS_MCS341_SYSTEMSTATUS_INTERRUPT_END)  );
 	}
 	/*
 		When many devices was connected more than 15, getDeviceNumber gets 14 values.
@@ -1028,6 +988,83 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 	return 0;
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsChildUnitInit);
+
+
+//-------------------------- Timer Function ------------------------
+
+// 2016.02.17 halt / shutdown button timer function
+/**
+	@~English
+	@brief MCS341 Controller's timer function
+	@note 17, Feb, 2016 : halt / shutdown button timer function
+	@param arg : argument
+	@~Japanese
+	@brief MCS341 コントローラ用タイマー関数
+	@note 2016.02.17 : halt / shutdown ボタン処理用タイマー関数として実装
+	@note 2016.06.10 : reset_button_check_modeのとき、gpio87から入力信号が入ると orderly_poweroffが走ってしまう問題を修正
+	@param arg : 引数
+**/
+void mcs341_controller_timer_function(unsigned long arg)
+{
+
+	struct timer_list *tick = (struct timer_list *) arg;
+	int cnt;
+
+	// Err LED 追加 Ver.1.0.8
+	for( cnt = CPS_MCS341_ARRAYNUM_LED_PWR; cnt < CPS_MCS341_MAX_LED_ARRAY_NUM; cnt ++ ){
+
+		if( ledEnable[cnt] ){
+			if( led_timer_count[cnt] >= 50 ){ // about 1 sec over
+				ledState[cnt] ^= 0x01;	// 点滅
+				contec_mcs341_controller_setLed( (1 << cnt) , ledState[cnt] );
+				led_timer_count[cnt] = 0;
+			}
+			else
+				led_timer_count[cnt] ++;
+		}
+	}
+
+	//Ver 1.0.10 [bugfix] 2016.06.10
+	if( !reset_button_check_mode ){
+		if( gpio_get_value(CPS_CONTROLLER_MCS341_RESET_PIN) ){
+			// Ver.1.0.9
+			// At first pushed button, LVDS power and systeminit interrupt line off!!
+			if(reset_count == 0 && fpga_ver > 1 ){
+				// LVDS OFF
+				mcs341_fpga_reset_reg &= CPS_MCS341_RESET_SET_LVDS_PWR;
+				contec_mcs341_controller_setFpgaResetReg();
+
+				// INTERRUPT LINE OFF
+				mcs341_systeminit_reg &= ~CPS_MCS341_SYSTEMINIT_SETINTERRUPT;
+				contec_mcs341_controller_setSystemInit();
+			}
+
+			reset_count += 1;
+			if( reset_count > (5 * 50) ){ //about 5 sec over
+				printk(KERN_INFO"RESET !\n");
+				gpio_direction_output(CPS_CONTROLLER_MCS341_RESET_POUT, 1);
+			}
+		}else{
+			if( reset_count > 0 ){
+				orderly_poweroff(false);
+			}
+			reset_count = 0;
+		}
+	}
+
+	if( watchdog_timer_msec ){
+		contec_mcs341_controller_clear_watchdog();
+	}
+
+	/* Ver.1.0.13 Keep the system status of FPGA. If system status of FPGA was initialized, timer function is restarted the FPGA. */
+	if( CPS_MCS341_SYSTEMSTATUS_BUSY( contec_mcs341_controller_getSystemStatus() ) ){
+		// restarting initialize !!
+		contec_mcs341_controller_cpsDevicesInit();
+		contec_mcs341_controller_cpsChildUnitInit(child_unit);
+	}
+
+	mod_timer(tick, jiffies + CPS_CONTROLLER_MCS341_TICK );
+}
 
 /// @}
 

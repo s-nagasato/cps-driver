@@ -39,7 +39,7 @@
  #include "libcpsaio.h"
 #endif
 
-#define CONTEC_CPSAIO_LIB_VERSION	"1.0.7"
+#define CONTEC_CPSAIO_LIB_VERSION	"1.0.8"
 
 typedef struct __contec_cps_aio_int_callback__
 {
@@ -105,6 +105,38 @@ unsigned long _contec_cpsaio_set_exchange( short Id, unsigned char isOutput, uns
 
 	return AIO_ERR_SUCCESS;
 
+}
+
+/**
+	@~English
+	@brief Check Memory Flag function.
+	@param Id : Device ID
+	@param isCheckMemFlag : Memory Status Bit Flag
+	@note Added Version 1.0.8.
+	@par This is internal function.
+	@return Success: AIO_ERR_SUCCESS
+	@~Japanese
+	@brief メモリのフラグを確認する関数
+	@param Id : デバイスID
+	@param isCheckMemFlag : メモリStatusビット確認用フラグ
+	@note Ver1.0.8より追加
+	@par この関数は内部関数です。
+	@return 成功:  AIO_ERR_SUCCESS
+**/
+unsigned long _contec_cpsaio_check_memstatus( short Id, unsigned char isCheckMemFlag )
+{
+	struct cpsaio_ioctl_arg	arg;
+	unsigned long count;
+
+	count = 0;
+	do{
+		usleep( 1 );
+		ioctl( Id, IOCTL_CPSAIO_GETMEMSTATUS , &arg);
+		if( count >= 1000 ) return 1;
+		count ++;
+	}while(!( arg.val & isCheckMemFlag ) );
+
+	return AIO_ERR_SUCCESS;
 }
 
 /**
@@ -298,12 +330,13 @@ unsigned long ContecCpsAioGetAiMaxChannels( short Id, short *AiMaxChannels ){
 	@param Id : デバイスID
 	@param libVer : ライブラリバージョン
 	@param drvVer : ドライババージョン
+	@note Ver.1.0.8 Change from cpsaio_ioctl_arg to cpsaio_ioctl_string_arg.
 	@return 成功: AIO_ERR_SUCCESS
 **/
 unsigned long ContecCpsAioGetVersion( short Id , unsigned char libVer[] , unsigned char drvVer[] )
 {
 
-	struct cpsaio_ioctl_arg	arg;
+	struct cpsaio_ioctl_string_arg	arg;
 	int len;
 
 
@@ -479,7 +512,7 @@ unsigned long ContecCpsAioGetAiEventSamplingTimes( short Id, unsigned long *AiSa
 unsigned long ContecCpsAioStartAi( short Id )
 {
 	struct cpsaio_ioctl_arg	arg;
-	unsigned count = 0;
+	unsigned long count = 0;
 
 	ioctl( Id, IOCTL_CPSAIO_START_AI, 0 );
 
@@ -501,21 +534,13 @@ unsigned long ContecCpsAioStartAi( short Id )
 		count ++;
 	}while(!( arg.val & CPS_AIO_AI_STATUS_MOTION_END ) );
 
-////////////////////// Ver.1.0.6 hasegawa
+////////////////////// Ver.1.0.6
 	if( arg.val & CPS_AIO_AI_STATUS_MOTION_END ) {
 		arg.val = CPS_AIO_AI_STATUS_MOTION_END;
 		ioctl( Id, IOCTL_CPSAIO_SET_INTERRUPT_FLAG_AI , &arg);
 	}
-////////////////////// Ver.1.0.6 hasegawa
+////////////////////// Ver.1.0.6
 
-	/* Multi Ai の場合、MDREフラグをチェックする  */
-	count = 0;
-	do{
-		usleep( 1 );
-		ioctl( Id, IOCTL_CPSAIO_GETMEMSTATUS , &arg);
-		if( count >= 1000 ) return 3;
-		count ++;
-	}while(!( arg.val & CPU_AIO_MEMSTATUS_MDRE ) );
 
 	return AIO_ERR_SUCCESS;
 }
@@ -668,6 +693,9 @@ unsigned long ContecCpsAioSingleAi( short Id, short AiChannel, long *AiData )
 	// Ai Start
 	ContecCpsAioStartAi( Id );
 
+	// Single Ai の場合、DREフラグをチェックする
+	_contec_cpsaio_check_memstatus( Id, CPU_AIO_MEMSTATUS_DRE );
+
 	ioctl( Id, IOCTL_CPSAIO_INDATA, &arg );
 	*AiData = (long)( arg.val );
 
@@ -743,6 +771,9 @@ unsigned long ContecCpsAioMultiAi( short Id, short AiChannels, long AiData[] )
 
 	// Ai Start
 	ContecCpsAioStartAi( Id );
+
+	// Multi Ai の場合、MDREフラグをチェックする
+	_contec_cpsaio_check_memstatus( Id, CPU_AIO_MEMSTATUS_MDRE );
 
 	for( cnt = 0;cnt < AiChannels; cnt ++ ){
 		ioctl( Id, IOCTL_CPSAIO_INDATA, &arg );

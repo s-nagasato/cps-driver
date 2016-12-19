@@ -48,7 +48,7 @@
 
 #endif
 
-#define DRV_VERSION	"1.0.7"
+#define DRV_VERSION	"1.0.10"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS SenSor Input driver");
@@ -110,6 +110,12 @@ static LIST_HEAD(cpsssi_xp_head);
 #define DEBUG_CPSSSI_IOCTL(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSSSI_IOCTL(fmt...)	do { } while (0)
+#endif
+
+#if 0
+#define DEBUG_CPSSSI_INTERRUPT_CHECK(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSSSI_INTERRUPT_CHECK(fmt...)	do { } while (0)
 #endif
 
 /// @}
@@ -867,22 +873,35 @@ static const int AM335X_IRQ_NMI=7;
 irqreturn_t cpsssi_isr_func(int irq, void *dev_instance){
 
 	unsigned short wStatus;
-
+	int handled = 0;
 	PCPSSSI_DRV_FILE dev =(PCPSSSI_DRV_FILE) dev_instance;
 	
-	if( !dev ) return IRQ_NONE;
-
-	if( contec_mcs341_device_IsCategory( ( dev->node + 1 ) , CPS_CATEGORY_SSI ) ){ 
-	
-	}
-	else return IRQ_NONE;
-	
-
-	if(printk_ratelimit()){
-		printk("cpsssi Device Number:%d IRQ interrupt !\n",( dev->node + 1 ) );
+	// Ver.1.0.9 Don't insert interrupt "xx callbacks suppressed" by IRQ_NONE.
+	if( !dev ){
+		DEBUG_CPSSSI_INTERRUPT_CHECK(KERN_INFO"This interrupt is not CONPROSYS SSI Device.");
+		goto END_OF_INTERRUPT_CPSSSI;
 	}
 
-	return IRQ_HANDLED;
+	if( !contec_mcs341_device_IsCategory(  dev->node  , CPS_CATEGORY_SSI ) ){
+		DEBUG_CPSSSI_INTERRUPT_CHECK("This interrupt is not Category SSI Device.");
+		goto END_OF_INTERRUPT_CPSSSI;
+	}
+	
+	spin_lock(&dev->lock);
+
+	handled = 1;
+
+//END_OF_INTERRUPT_SPIN_UNLOCK_CPSSSI:
+	spin_unlock(&dev->lock);
+	
+END_OF_INTERRUPT_CPSSSI:
+
+	if(IRQ_RETVAL(handled) ){
+		if(printk_ratelimit())
+			printk("cpsssi Device Number:%d IRQ interrupt !\n",( dev->node ) );
+	}
+
+	return IRQ_RETVAL(handled);
 }
 
 
@@ -912,12 +931,14 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	unsigned long flags;
 	
 	struct cpsssi_ioctl_arg ioc;
+	struct cpsssi_ioctl_string_arg ioc_str; // Ver.1.0.8
 	struct cpsssi_direct_command_arg dc_ioc; // Ver 1.0.7
 
 	PCPSSSI_4P_CHANNEL_DATA pData = (PCPSSSI_4P_CHANNEL_DATA)dev->data.ChannelData;
 
 
 	memset( &ioc, 0 , sizeof(ioc) );
+	memset( &ioc_str, 0 , sizeof(ioc_str) ); // Ver.1.0.8
 	memset( &dc_ioc, 0 , sizeof(dc_ioc) );  // Ver 1.0.7
 	if ( dev == (PCPSSSI_DRV_FILE)NULL ){
 		DEBUG_CPSSSI_IOCTL(KERN_INFO"CPSSSI_DRV_FILE NULL POINTER.");
@@ -1218,17 +1239,18 @@ static long cpsssi_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					break;
 
 			case IOCTL_CPSSSI_GET_DRIVER_VERSION:
+				// Ver.1.0.8 Modify using from cpsssi_ioctl_arg to cpsssi_ioctl_string_arg
 				if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 					return -EFAULT;
 				}
-				if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+				if( copy_from_user( &ioc_str, (int __user *)arg, sizeof(ioc_str) ) ){
 					return -EFAULT;
 				}
 				spin_lock_irqsave(&dev->lock, flags);
-				strcpy(ioc.str, DRV_VERSION);
+				strcpy(ioc_str.str, DRV_VERSION);
 				spin_unlock_irqrestore(&dev->lock, flags);
 
-				if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+				if( copy_to_user( (int __user *)arg, &ioc_str, sizeof(ioc_str) ) ){
 					return -EFAULT;
 				}
 				break;
@@ -1328,7 +1350,7 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 //	memset( &dev->data.ChannelData, 0x00, sizeof(CPSSSI_4P_CHANNEL_DATA) * dev->data.ssiChannel );
 
 	//IRQ Request
-	ret = request_irq(AM335X_IRQ_NMI, cpsssi_isr_func, IRQF_SHARED, "cps-ssi-intr", dev);
+	//ret = request_irq(AM335X_IRQ_NMI, cpsssi_isr_func, IRQF_SHARED, "cps-ssi-intr", dev);
 
 	if( ret ){
 		DEBUG_CPSSSI_OPEN(" request_irq failed.(%x) \n",ret);
@@ -1338,6 +1360,7 @@ static int cpsssi_open(struct inode *inode, struct file *filp )
 	spin_lock_init( &dev->lock );
 
 	dev->ref = 1;
+	notFirstOpenFlg[nodeNo]++;		// Ver.1.0.10 segmentation fault暫定対策フラグインクリメント(Forget 1.0.7...)
 
 	return 0;
 
@@ -1385,7 +1408,7 @@ static int cpsssi_close(struct inode * inode, struct file *filp ){
 
 		if( dev->ref == 0 ){
 
-			free_irq(AM335X_IRQ_NMI, dev);
+			//free_irq(AM335X_IRQ_NMI, dev);
 			kfree(dev->data.ChannelData);
 
 			cps_common_mem_release( dev->localAddr,

@@ -1,5 +1,5 @@
 /* 
--- Copyright (c) 2015 Syunsuke Okamoto
+-- Copyright (c) 2016 Syunsuke Okamoto
 --
 -- This software is released under the MIT License.
 --
@@ -36,9 +36,10 @@
 int main(int argc, char *argv[]){
 	short Id;
 	unsigned char devName[32]="";
-	unsigned char dat, dat2;
 	unsigned int isPowerSupply;
-	int ch;
+	unsigned int logic;
+	unsigned int bit;
+	unsigned int num = 10, cnt = 0;
 
 	if( argc > 1 ){
 		strcat(devName, argv[1]);
@@ -46,18 +47,18 @@ int main(int argc, char *argv[]){
 		strcat(devName, "cpsdio0");
 	}
 
-	/* 計測チャネル数選択 */
+	/* 割り込みビット選択 */
 	if( argc > 2 ){
-		sscanf( argv[2], "%d", (unsigned int*)&ch );
+		sscanf( argv[2], "%d", (unsigned int*)&bit );
 	}else{
-		ch = 0;
+		bit = 0;
 	}
 
-	// データ設定
+	// Logic設定
 	if( argc > 3 ){
-		sscanf( argv[3], "%x",(unsigned int*) &dat );
+		sscanf( argv[3], "%d",(unsigned int*) &logic );
 	}else{
-		dat = 0x55;
+		logic = DIO_INT_RISE;
 	}
 
 	// 電源制御 (BLのみ)
@@ -70,17 +71,22 @@ int main(int argc, char *argv[]){
 	/* デバイスをopenする */
 	ContecCpsDioInit(devName, &Id);
 
+	/* 割り込みビット登録 */
+	ContecCpsDioNotifyInterrupt( Id, bit, logic ); 
+
 #ifdef CONFIG_DIO_BL
 	ContecCpsDioSetInternalPowerSupply( Id, (unsigned char)isPowerSupply );
 #endif
-	ContecCpsDioOutByte(Id, ch, dat );
 
-	sleep( 1 );
+	for( cnt = 0 ;cnt < num * 2; cnt ++ ){
+		ContecCpsDioOutBit(Id, bit, (( cnt + 1 ) % 2) );
+		printf(" --- bit %d = %d --- \n", bit, (( cnt + 1 ) % 2) );
+		sleep( 1 );
+	}
 
-	ContecCpsDioInpByte(Id, ch, &dat2 );
 
-	if( dat == dat2 ) printf("[ch:%d] In = Out (value %x)\n", ch, dat );
-	else	printf(" In %x Out %x \n", dat2, dat ); 
+	ContecCpsDioNotifyInterrupt( Id, bit, DIO_INT_NONE ); 
+	
 
 	/* デバイスを閉じる*/
 	ContecCpsDioExit(Id);

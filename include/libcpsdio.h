@@ -27,6 +27,11 @@
 
 #define DIOM_INTERRUPT	0x1300
 
+#define DIO_INT_NONE	0
+#define DIO_INT_RISE	1
+#define DIO_INT_FALL	2
+
+
 /****  Structure ****/
 typedef struct __contec_cps_dio_int_callback_data__
 {

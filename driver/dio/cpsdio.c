@@ -42,7 +42,7 @@
 
 #endif
 
-#define DRV_VERSION	"1.0.0"
+#define DRV_VERSION	"1.0.4"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Digital I/O driver");
@@ -501,35 +501,54 @@ static const int AM335X_IRQ_NMI=7;
 irqreturn_t cpsdio_isr_func(int irq, void *dev_instance){
 
 	unsigned short wStatus;
+	int handled = 0;
 
 	PCPSDIO_DRV_FILE dev =(PCPSDIO_DRV_FILE) dev_instance;
 	
-	if( !dev ) return IRQ_NONE;
+	// Ver.0.9.5 Don't insert interrupt "xx callbacks suppressed" by IRQ_NONE.
+	if( !dev ){
+		DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"This interrupt is not CONPROSYS DIO Device.");
+		goto END_OF_INTERRUPT_CPSDIO;
+	}
 
 	DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- isr_func: isDio=%u\n", contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_DIO ) );
-	if( contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_DIO ) ){ 
-		cpsdio_read_interrupt_status( (unsigned long)dev->baseAddr, &wStatus);
 
-		if( dev->int_callback != NULL && wStatus ){
+	if( !contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_DIO ) ){
+		DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- IRQ_NONE\n");
+		goto END_OF_INTERRUPT_CPSDIO;
+	}
+
+	spin_lock(&dev->lock);
+
+	cpsdio_read_interrupt_status( (unsigned long)dev->baseAddr, &wStatus);
+
+	if( !wStatus ){
+		DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- wStatus = 0 IRQ_NONE\n");
+		goto END_OF_INTERRUPT_SPIN_UNLOCK_CPSDIO;
+	}
+
+	handled = 1;
+
+	if( dev->int_callback != NULL ){
 			// sending user callback function ( kernel context to user context <used signal SIGUSR1 > )
 			DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- send_sig (1): wStatus=%02X\n", 
 							wStatus);
 			send_sig( SIGUSR2, dev->int_callback, 1 );
-	DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- send_sig (2): wStatus=%02X\n", 
+			DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- send_sig (2): wStatus=%02X\n",
 							wStatus);
-		}
-	}
-	else {
-		DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- IRQ_NONE\n");
-		return IRQ_NONE;
-	}
-	
-
-	if(printk_ratelimit()){
-		printk("cpsdio Device Number:%d IRQ interrupt !\n",( dev->node ) );
 	}
 
-	return IRQ_HANDLED;
+END_OF_INTERRUPT_SPIN_UNLOCK_CPSDIO:
+	spin_unlock(&dev->lock);
+
+END_OF_INTERRUPT_CPSDIO:
+
+	if( IRQ_RETVAL(handled) ){
+		if(printk_ratelimit())
+			printk("cpsdio Device Number:%d IRQ interrupt !\n",( dev->node ) );
+	}
+
+	return IRQ_RETVAL(handled);
 }
 
 
@@ -557,7 +576,9 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	unsigned long flags;
 
 	struct cpsdio_ioctl_arg ioc;
+	struct cpsdio_ioctl_string_arg ioc_str; // Ver.1.0.2
 	memset( &ioc, 0 , sizeof(ioc) );
+	memset( &ioc_str, 0 , sizeof(ioc_str) );// Ver.1.0.2
 
 	if ( dev == (PCPSDIO_DRV_FILE)NULL ){
 		DEBUG_CPSDIO_IOCTL(KERN_INFO"CPSDIO_DRV_FILE NULL POINTER.");
@@ -778,17 +799,19 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					break;
 
 		case IOCTL_CPSDIO_GET_DEVICE_NAME:
+			// Ver.1.0.2 Modify using from cpsdio_ioctl_arg to cpsdio_ioctl_string_arg
+
 					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 						return -EFAULT;
 					}
-					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+					if( copy_from_user( &ioc_str, (int __user *)arg, sizeof(ioc_str) ) ){
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
-					cpsdio_get_dio_devname( dev->node , ioc.str );
+					cpsdio_get_dio_devname( dev->node , ioc_str.str );
 					spin_unlock_irqrestore(&dev->lock, flags);
 					
-					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+					if( copy_to_user( (int __user *)arg, &ioc_str, sizeof(ioc_str) ) ){
 						return -EFAULT;
 					}
 					break;
@@ -805,12 +828,13 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 						spin_lock_irqsave(&dev->lock, flags);
 
-///////////////////////// debug ( Change find_task_by_vpid function, EXPORT_SYMBOL_GPL. (See kernel/pid.c) )
-						dev->int_callback = find_task_by_vpid(ioc.val);
+///////////////////////// debug 
+//						dev->int_callback = find_task_by_vpid(ioc.val); // ( Caution : Change find_task_by_vpid function, EXPORT_SYMBOL_GPL. (See kernel/pid.c) )
+						dev->int_callback = get_pid_task( find_get_pid(ioc.val), PIDTYPE_PID );
 ///////////////////////// debug
 
 ///////////////////////// debug
-						DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- SET_CALLBACK_PROCESS: val=%08X, int_callback=%08lX\n", 
+						DEBUG_CPSDIO_INTERRUPT_CHECK(KERN_INFO"--- SET_CALLBACK_PROCESS(get_pid_task): val=%08X, int_callback=%08lX\n", 
 							ioc.val,
 							(unsigned long)dev->int_callback);
 ///////////////////////// debug
@@ -823,6 +847,22 @@ static long cpsdio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					break;
 ///////////////////////// debug
+		case IOCTL_CPSDIO_GET_DRIVER_VERSION:
+			// Ver.1.0.2 Add
+			if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
+				return -EFAULT;
+			}
+			if( copy_from_user( &ioc_str, (int __user *)arg, sizeof(ioc_str) ) ){
+				return -EFAULT;
+			}
+			spin_lock_irqsave(&dev->lock, flags);
+			strcpy(ioc_str.str, DRV_VERSION);
+			spin_unlock_irqrestore(&dev->lock, flags);
+
+			if( copy_to_user( (int __user *)arg, &ioc_str, sizeof(ioc_str) ) ){
+				return -EFAULT;
+			}
+			break;
 	}
 
 	return 0;
@@ -857,6 +897,9 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 
 	if (notFirstOpenFlg[nodeNo]) {		// Ver.1.0.0 初回オープンでなければ（segmentation fault暫定対策）
 		if ( inode->i_private != (PCPSDIO_DRV_FILE)NULL ){
+
+			DEBUG_CPSDIO_OPEN(KERN_INFO"inode->private %x\n",(int)inode->i_private );
+
 			dev = (PCPSDIO_DRV_FILE)inode->i_private;
 			filp->private_data =  (PCPSDIO_DRV_FILE)dev;
 
@@ -869,7 +912,9 @@ static int cpsdio_open(struct inode *inode, struct file *filp )
 		}
 	}
 
-	filp->private_data = (PCPSDIO_DRV_FILE)kmalloc( sizeof(CPSDIO_DRV_FILE) , GFP_KERNEL );
+	DEBUG_CPSDIO_OPEN(KERN_INFO"inode->private %x\n",(int)inode->i_private );
+
+	filp->private_data = (PCPSDIO_DRV_FILE)kzalloc( sizeof(CPSDIO_DRV_FILE) , GFP_KERNEL );
 	if( filp->private_data == (PCPSDIO_DRV_FILE)NULL ){
 		iRet = -ENOMEM;
 		goto NOT_MEM_PRIVATE_DATA;

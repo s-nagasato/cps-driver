@@ -7,7 +7,7 @@ OBJ=libcpsaio.o
 SRC=libcpsaio.c
 CFLAGS= -g -Wall
 
-VERSION =1.0.7
+VERSION =1.0.8
 
 # CPS_SDK_MACRO_CHECK ( without CONPROSYS SDK )
 ifneq "$(CPS_SDK_INSTALL_FULLDIR)" ""

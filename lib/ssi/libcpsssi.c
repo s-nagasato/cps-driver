@@ -33,7 +33,7 @@
  #include "libcpsssi.h"
 #endif
 
-#define CONTEC_CPSSSI_LIB_VERSION	"1.0.3"
+#define CONTEC_CPSSSI_LIB_VERSION	"1.0.5"
 
 typedef struct __contec_cps_ssi_int_callback__
 {
@@ -175,12 +175,13 @@ unsigned long ContecCpsSsiQueryDeviceName( short Id, char *DeviceName, char *Dev
 	@param Id : デバイスID
 	@param libVer : ライブラリバージョン
 	@param drvVer : ドライババージョン
+	@note Ver.1.0.5 Change from cpsaio_ioctl_arg to cpsaio_ioctl_string_arg.
 	@return 成功: SSI_ERR_SUCCESS
 **/
 unsigned long ContecCpsSsiGetVersion( short Id , unsigned char libVer[] , unsigned char drvVer[] )
 {
 
-	struct cpsssi_ioctl_arg	arg;
+	struct cpsssi_ioctl_string_arg	arg;
 	int len;
 
 

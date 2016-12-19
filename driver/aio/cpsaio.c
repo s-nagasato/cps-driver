@@ -40,7 +40,7 @@
  #include "../../include/cpsaio.h"
 
 #endif
-#define DRV_VERSION	"1.0.8"
+#define DRV_VERSION	"1.0.10"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Analog I/O driver");
@@ -104,6 +104,12 @@ typedef struct __cpsaio_driver_file{
 #define DEBUG_CPSAIO_IOCTL(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSAIO_IOCTL(fmt...)	do { } while (0)
+#endif
+
+#if 1
+#define DEBUG_CPSAIO_INTERRUPT_CHECK(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSAIO_INTERRUPT_CHECK(fmt...)	do { } while (0)
 #endif
 
 /// @}
@@ -252,6 +258,7 @@ int __cpsaio_find_analog_device( int node )
 
 /**
   @~English
+ 	@brief This function writes analog input data.
 	@param BaseAddr : base address
 	@param val : value
 	@return true : 0
@@ -263,13 +270,15 @@ int __cpsaio_find_analog_device( int node )
 **/ 
 static long cpsaio_read_ai_data( unsigned long BaseAddr, unsigned short *val )
 {
-	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_AIDATA_CPS_AIO ) , val );
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ai_data()[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AIDATA_CPS_AIO ), *val );
+	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_AIDATA_CPS_AIO );
+	cps_common_inpw( ulAddr , val );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ai_data()[%lx]=%x\n",ulAddr, *val );
 	return 0;
 }
 
 /**
 	@~English
+	@brief This function writes analog output data.
 	@param BaseAddr : base address
 	@param val : value
 	@return true : 0
@@ -281,13 +290,15 @@ static long cpsaio_read_ai_data( unsigned long BaseAddr, unsigned short *val )
 **/ 
 static long cpsaio_write_ao_data( unsigned long BaseAddr, unsigned short val )
 {
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_write_ao_data()[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AODATA_CPS_AIO ), val );
-	cps_common_outw( (unsigned long)( BaseAddr + OFFSET_AODATA_CPS_AIO ) , val );
+	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_AODATA_CPS_AIO );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_write_ao_data()[%lx]=%x\n",ulAddr, val );
+	cps_common_outw( ulAddr, val );
 	return 0;
 }
 
 /**
 	@~English
+	@brief This function reads analog input status.
 	@param BaseAddr : base address
 	@param wStatus : status
 	@return true : 0
@@ -299,13 +310,15 @@ static long cpsaio_write_ao_data( unsigned long BaseAddr, unsigned short val )
 **/ 
 static long cpsaio_read_ai_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
-	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_AISTATUS_CPS_AIO ) , wStatus );
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ai_status()[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AISTATUS_CPS_AIO ), *wStatus );
+	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_AISTATUS_CPS_AIO );
+	cps_common_inpw( ulAddr , wStatus );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ai_status()[%lx]=%x\n",ulAddr, *wStatus );
 	return 0;
 }
 
 /**
 	@~English
+	@brief This function reads analog output status.
 	@param BaseAddr : base address
 	@param wStatus : status
 	@return true : 0
@@ -317,8 +330,30 @@ static long cpsaio_read_ai_status( unsigned long BaseAddr, unsigned short *wStat
 **/ 
 static long cpsaio_read_ao_status( unsigned long BaseAddr, unsigned short *wStatus )
 {
-	cps_common_inpw( (unsigned long)( BaseAddr + OFFSET_AOSTATUS_CPS_AIO ) , wStatus );
-	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ao_status()[%lx]=%x\n",(unsigned long)( BaseAddr + OFFSET_AOSTATUS_CPS_AIO ), *wStatus );
+	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_AOSTATUS_CPS_AIO );
+	cps_common_inpw( ulAddr , wStatus );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_ao_status()[%lx]=%x\n",ulAddr, *wStatus );
+	return 0;
+}
+
+// Ver.1.0.10 Add.
+/**
+	@~English
+	@brief This function reads interrupt status.
+	@param BaseAddr : base address
+	@param wIntStatus : interrupt status
+	@return true : 0
+	@~Japanese
+	@brief 割り込みのステータスを取得する関数
+	@param BaseAddr : ベースアドレス
+	@param wIntStatus : 割込ステータス
+	@return 成功 : 0
+**/
+static long cpsaio_read_interrupt_status( unsigned long BaseAddr, unsigned short *wIntStatus )
+{
+	unsigned long ulAddr = (unsigned long)( BaseAddr + OFFSET_ECU_INTERRUPT_CHECK_CPS_AIO );
+	cps_common_inpw( ulAddr , wIntStatus );
+	DEBUG_CPSAIO_COMMAND(KERN_INFO"cpsaio_read_interrupt_status()[%lx]=%x\n",ulAddr, *wStatus );
 	return 0;
 }
 
@@ -457,6 +492,10 @@ static long cpsaio_command( unsigned long BaseAddr, unsigned char isReadWrite , 
 /// @{
 #define CPSAIO_COMMAND_ECU_INIT( addr ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_ECU, 0, CPS_AIO_COMMAND_ECU_INIT, NULL )
+#define CPSAIO_COMMAND_ECU_SETIRQMASK_ENABLE( addr ) \
+		cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_ECU, 0, CPS_AIO_COMMAND_ECU_SETIRQMASK_ENABLE, NULL )
+#define CPSAIO_COMMAND_ECU_SETIRQMASK_DISABLE( addr ) \
+		cpsaio_command( addr, CPS_AIO_COMMAND_CALL, CPS_AIO_ADDRESS_MODE_ECU, 0, CPS_AIO_COMMAND_ECU_SETIRQMASK_DISABLE, NULL )
 #define CPSAIO_COMMAND_ECU_SETINPUTSIGNAL( addr, data ) \
 	cpsaio_command( addr, CPS_AIO_COMMAND_WRITE, CPS_AIO_ADDRESS_MODE_ECU, 4, CPS_AIO_COMMAND_ECU_SETINPUTSIGNAL, data )
 #define CPSAIO_COMMAND_ECU_OUTPULSE0( addr )	\
@@ -726,7 +765,7 @@ static const int AM335X_IRQ_NMI=7;
 	@brief cpsaio_isr_func
 	@param irq : interrupt 
 	@param dev_instance : device instance
-	@return intreturn ( IRQ_HANDLED or IRQ_NONE )
+	@return intreturn_t ( IRQ_HANDLED or IRQ_NONE )
 	@~Japanese
 	@brief cpsaio 割り込み処理
 	@param irq : IRQ番号
@@ -735,23 +774,89 @@ static const int AM335X_IRQ_NMI=7;
 **/ 
 irqreturn_t cpsaio_isr_func(int irq, void *dev_instance){
 
-	unsigned short wStatus;
-
+	unsigned short wStatus = 0;
+	unsigned short wData = 0;
+	int handled = 0;
 	PCPSAIO_DRV_FILE dev =(PCPSAIO_DRV_FILE) dev_instance;
-	
-	if( !dev ) return IRQ_NONE;
-
-	if( contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_AIO ) ){ 
-	
-	}
-	else return IRQ_NONE;
-	
-
-	if(printk_ratelimit()){
-		printk("cpsaio Device Number:%d IRQ interrupt !\n",( dev->node ) );
+	// Ver.1.0.10 Don't insert interrupt "xx callbacks suppressed" by IRQ_NONE.
+	if( !dev ){
+		DEBUG_CPSAIO_INTERRUPT_CHECK("This interrupt is not CONPROSYS AIO Device.");
+		goto END_OF_INTERRUPT_CPSAIO;
 	}
 
-	return IRQ_HANDLED;
+	// Not Aio Device
+	if( !contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_AIO ) ){
+		DEBUG_CPSAIO_INTERRUPT_CHECK("This interrupt is not Category AIO Device.");
+		goto END_OF_INTERRUPT_CPSAIO;
+	}
+
+	spin_lock(&dev->lock);
+
+	// Ver.1.0.10 Check Interrupt Status
+	cpsaio_read_interrupt_status((unsigned long)dev->baseAddr, &wStatus);
+
+
+	if( !wStatus ){
+		 goto END_OF_INTERRUPT_SPIN_UNLOCK_CPSAIO;
+	}
+
+	DEBUG_CPSAIO_INTERRUPT_CHECK("Interrupt Status : %x\n.",wStatus);
+
+	// Ver 1.0.10 test interrupt.
+	CPSAIO_COMMAND_ECU_SETIRQMASK_ENABLE( (unsigned long)dev->baseAddr );
+	
+	/* Ver 1.0.10 Test Interrupt Check */
+
+	// AI
+	if( wStatus & 0x01 ){
+		CPSAIO_COMMAND_ECU_AI_GET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
+
+		DEBUG_CPSAIO_INTERRUPT_CHECK("AI Interrupt Flag : %x \n", wData );
+
+		if( wData ){
+			CPSAIO_COMMAND_ECU_AI_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
+			handled = 1;
+		}
+	}
+	
+	//AO
+	if( wStatus & 0x02 ){
+		CPSAIO_COMMAND_ECU_AO_GET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
+
+		DEBUG_CPSAIO_INTERRUPT_CHECK("AO Interrupt Flag : %x \n", wData );
+
+		if( wData ){
+			CPSAIO_COMMAND_ECU_AO_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
+			handled = 1;
+		}
+	}
+	
+	// MEM
+	if( wStatus & 0x10 ){
+		CPSAIO_COMMAND_ECU_MEM_GET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
+
+		DEBUG_CPSAIO_INTERRUPT_CHECK("MEM Interrupt Flag : %x \n", wData );
+
+		if( wData ){
+			CPSAIO_COMMAND_ECU_MEM_SET_INTERRUPT_FLAG( (unsigned long)dev->baseAddr, &wData );
+			handled = 1;
+		}
+	}
+
+	CPSAIO_COMMAND_ECU_SETIRQMASK_DISABLE( (unsigned long)dev->baseAddr );
+	// End of test Interrupt Check Ver.1.0.10
+
+END_OF_INTERRUPT_SPIN_UNLOCK_CPSAIO:
+	spin_unlock(&dev->lock);
+
+END_OF_INTERRUPT_CPSAIO:
+
+	if(IRQ_RETVAL(handled) ){
+		if(printk_ratelimit())
+			printk("cpsaio Device Number:%d IRQ interrupt !\n",( dev->node ) );
+	}
+
+	return IRQ_RETVAL(handled);
 }
 
 
@@ -1245,6 +1350,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	unsigned short valw = 0;
 	unsigned long valdw = 0;
 	struct cpsaio_ioctl_arg ioc;
+	struct cpsaio_ioctl_string_arg ioc_str; // Ver.1.0.9
 	struct cpsaio_direct_arg d_ioc;
 	struct cpsaio_direct_command_arg dc_ioc;
 	unsigned int num = 0;
@@ -1254,6 +1360,7 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	unsigned int abi ;
 
 	memset( &ioc, 0 , sizeof(ioc) );
+	memset( &ioc_str, 0, sizeof(ioc_str) );	// Ver.1.0.9
 	memset( &d_ioc, 0, sizeof(d_ioc) );
 	memset( &dc_ioc, 0, sizeof(dc_ioc) );
 
@@ -1604,17 +1711,18 @@ static long cpsaio_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 
 		case IOCTL_CPSAIO_GET_DRIVER_VERSION:
 			// Ver.1.0.8 Add
+			// Ver.1.0.9 Modify using from cpsaio_ioctl_arg to cpsaio_ioctl_string_arg
 			if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 				return -EFAULT;
 			}
-			if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+			if( copy_from_user( &ioc_str, (int __user *)arg, sizeof(ioc_str) ) ){
 				return -EFAULT;
 			}
 			spin_lock_irqsave(&dev->lock, flags);
-			strcpy(ioc.str, DRV_VERSION);
+			strcpy(ioc_str.str, DRV_VERSION);
 			spin_unlock_irqrestore(&dev->lock, flags);
 
-			if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+			if( copy_to_user( (int __user *)arg, &ioc_str, sizeof(ioc_str) ) ){
 				return -EFAULT;
 			}
 			break;

@@ -54,12 +54,10 @@ CPS_SPI_SET_PACKET(	\
 	@~English
 	@param address : offset address
 	@param type : byte access or word access
-	@param value : value
 	@~Japanese
 	@brief CPS-MC341-DSXのSPI ICへのSPI受信用パケットを作成します。
 	@param address : オフセットアドレス
 	@param type : バイトアクセスか　ワードアクセス
-	@param value : 値
 **/
 #define CPS_SET_MC341_DS1X_SPI_READ_PACKET( address, type ) \
 		CPS_SPI_SET_PACKET(\

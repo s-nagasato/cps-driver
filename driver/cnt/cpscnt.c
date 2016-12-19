@@ -43,7 +43,7 @@
 #endif
 
 
-#define DRV_VERSION	"0.9.3"
+#define DRV_VERSION	"0.9.6"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("CONTEC CONPROSYS Counter I/O driver");
@@ -151,6 +151,12 @@ static	int *notFirstOpenFlg = NULL;		// Ver.0.9.3 segmentation fault暫定対策
 #define DEBUG_CPSCNT_IOCTL(fmt...)	printk(fmt)
 #else
 #define DEBUG_CPSCNT_IOCTL(fmt...)	do { } while (0)
+#endif
+
+#if 0
+#define DEBUG_CPSCNT_INTERRUPT_CHECK(fmt...)	printk(fmt)
+#else
+#define DEBUG_CPSCNT_INTERRUPT_CHECK(fmt...)	do { } while (0)
 #endif
 
 /// @}
@@ -1082,22 +1088,35 @@ static const int AM335X_IRQ_NMI=7;
 irqreturn_t cpscnt_isr_func(int irq, void *dev_instance){
 
 	unsigned short wStatus;
-
+	int handled = 0;
 	PCPSCNT_DRV_FILE dev =(PCPSCNT_DRV_FILE) dev_instance;
 	
-	if( !dev ) return IRQ_NONE;
-
-	if( contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_CNT ) ){ 
-
+	// Ver.0.9.5 Don't insert interrupt "xx callbacks suppressed" by IRQ_NONE.
+	if( !dev ){
+		DEBUG_CPSCNT_INTERRUPT_CHECK(KERN_INFO"This interrupt is not CONPROSYS CNT Device.");
+		goto END_OF_INTERRUPT_CPSCNT;
 	}
-	else return IRQ_NONE;
+
+	if( !contec_mcs341_device_IsCategory( dev->node , CPS_CATEGORY_CNT ) ){
+		DEBUG_CPSCNT_INTERRUPT_CHECK("This interrupt is not Category CNT Device.");
+		goto END_OF_INTERRUPT_CPSCNT;
+	}
+
+	spin_lock(&dev->lock);
+
+	handled = 1;
+
+//END_OF_INTERRUPT_SPIN_UNLOCK_CPSSSI:
+		spin_unlock(&dev->lock);
+
+END_OF_INTERRUPT_CPSCNT:
 	
-
-	if(printk_ratelimit()){
-		printk("cpscnt Device Number:%d IRQ interrupt !\n",( dev->node ) );
+	if(IRQ_RETVAL(handled)){
+		if(printk_ratelimit())
+			printk("cpscnt Device Number:%d IRQ interrupt !\n",( dev->node ) );
 	}
 
-	return IRQ_HANDLED;
+	return IRQ_RETVAL(handled);
 }
 
 
@@ -1128,7 +1147,9 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 	PCPSCNT_32XXI_DATA pData = (PCPSCNT_32XXI_DATA)dev->data.ChannelData;
 
 	struct cpscnt_ioctl_arg ioc;
+	struct cpscnt_ioctl_string_arg ioc_str; // Ver.0.9.4
 	memset( &ioc, 0 , sizeof(ioc) );
+	memset( &ioc_str, 0, sizeof(ioc_str) ); // Ver.0.9.4
 
 	if ( dev == (PCPSCNT_DRV_FILE)NULL ){
 		DEBUG_CPSCNT_IOCTL(KERN_INFO"CPSCNT_DRV_FILE NULL POINTER.");
@@ -1475,17 +1496,18 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					break;
 
 		case IOCTL_CPSCNT_GET_DEVICE_NAME:
+			// Ver.0.9.4 Modify using from cpscnt_ioctl_arg to cpscnt_ioctl_string_arg
 					if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 						return -EFAULT;
 					}
-					if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+					if( copy_from_user( &ioc_str, (int __user *)arg, sizeof(ioc_str) ) ){
 						return -EFAULT;
 					}
 					spin_lock_irqsave(&dev->lock, flags);
-					cpscnt_get_cnt_devname( dev->node , ioc.str );
+					cpscnt_get_cnt_devname( dev->node , ioc_str.str );
 					spin_unlock_irqrestore(&dev->lock, flags);
 					
-					if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+					if( copy_to_user( (int __user *)arg, &ioc_str, sizeof(ioc_str) ) ){
 						return -EFAULT;
 					}
 					break;
@@ -1578,19 +1600,20 @@ static long cpscnt_ioctl( struct file *filp, unsigned int cmd, unsigned long arg
 					}
 					break;
 ///////////////////////////// Ver.0.9.2
-// Ver.0.9.3
+// Ver.0.9.3 add
+// Ver.0.9.4 Modify using from cpscnt_ioctl_arg to cpscnt_ioctl_string_arg
 		case IOCTL_CPSCNT_GET_DRIVER_VERSION:
 			if(!access_ok(VERITY_WRITE, (void __user *)arg, _IOC_SIZE(cmd) ) ){
 				return -EFAULT;
 			}
-			if( copy_from_user( &ioc, (int __user *)arg, sizeof(ioc) ) ){
+			if( copy_from_user( &ioc_str, (int __user *)arg, sizeof(ioc_str) ) ){
 				return -EFAULT;
 			}
 			spin_lock_irqsave(&dev->lock, flags);
-			strcpy(ioc.str, DRV_VERSION);
+			strcpy(ioc_str.str, DRV_VERSION);
 			spin_unlock_irqrestore(&dev->lock, flags);
 
-			if( copy_to_user( (int __user *)arg, &ioc, sizeof(ioc) ) ){
+			if( copy_to_user( (int __user *)arg, &ioc_str, sizeof(ioc_str) ) ){
 				return -EFAULT;
 			}
 			break;
@@ -1694,6 +1717,7 @@ static int cpscnt_open(struct inode *inode, struct file *filp )
 	spin_lock_init( &dev->lock );
 
 	dev->ref = 1;
+	notFirstOpenFlg[nodeNo]++;		// Ver.0.9.6 segmentation fault暫定対策フラグインクリメント(Forget 0.9.3...)
 
 	return 0;
 NOT_FOUND_CNT_PRODUCT:

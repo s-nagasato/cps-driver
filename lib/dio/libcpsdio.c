@@ -218,12 +218,13 @@ unsigned long ContecCpsDioGetMaxPort( short Id, short *InPortNum, short *OutPort
 	@param Id : デバイスID
 	@param libVer : ライブラリバージョン
 	@param drvVer : ドライババージョン
+	@note Ver.1.0.5 Change from cpsaio_ioctl_arg to cpsaio_ioctl_string_arg.
 	@return 成功: DIO_ERR_SUCCESS
 **/
 unsigned long ContecCpsDioGetVersion( short Id , unsigned char libVer[] , unsigned char drvVer[] )
 {
 
-	struct cpsdio_ioctl_arg	arg;
+	struct cpsdio_ioctl_string_arg	arg;
 	int len;
 
 

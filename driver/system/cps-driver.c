@@ -1,6 +1,6 @@
 /*
  *  Base Driver for CONPROSYS (only) by CONTEC .
- * Version 1.0.12
+ * Version 1.0.14
  *
  *  Copyright (C) 2015 Syunsuke Okamoto.<okamoto@contec.jp>
  *
@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/reboot.h>
 
-#define DRV_VERSION	"1.0.13"
+#define DRV_VERSION	"1.0.14"
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("CONTEC CONPROSYS BASE Driver");
@@ -116,6 +116,12 @@ MODULE_VERSION(DRV_VERSION);
 #define DEBUG_MODULE_PARAM(fmt...)        do { } while (0)
 #endif
 
+#if 0
+#define DEBUG_TIMER_FUNC_PRINT(fmt...)        printk(fmt)
+#else
+#define DEBUG_TIMER_FUNC_PRINT(fmt...)        do { } while (0)
+#endif
+
 /// @}
 
 static unsigned char __iomem *map_baseaddr ;			///< I/O Memory Mapped Base Address (Controller)
@@ -124,6 +130,7 @@ static unsigned char __iomem *map_devbaseaddr[CPS_DEVICE_MAX_NUM];	///< I/O Memo
 // 2016.02.17 halt / shutdown button timer counter
 static struct timer_list mcs341_timer;	///< timer
 static unsigned int reset_count = 0;	///< reset_counter
+static unsigned int shutdown_sequence = 0;	///< shutdown_sequence
 
 static unsigned short fpga_ver = 0;	///< fpga_version
 static unsigned char mcs341_systeminit_reg = 0; ///< fpga system init data
@@ -788,12 +795,15 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_getDiValue);
 /**
 	@~English
 	@brief This function is completed by MCS341 Device ID-Sel.
+	@param isUsedDelay : 0... sleep, 1... delay
 	@par This function is sub-routine of Initialize.
 	@~Japanese
 	@brief MCS341 ControllerのID-SELを完了させるための関数。
+	@param isUsedDelay : 0... sleep, 1... delay
 	@par この関数は内部関数です。初期化を完了させるためのサブルーチンになります。
 **/
-static void __contec_mcs341_device_idsel_complete( void ){
+//static void __contec_mcs341_device_idsel_complete( void ){
+static void __contec_mcs341_device_idsel_complete( int isUsedDelay ){
 	int cnt;
 	int nInterrupt;
 
@@ -810,7 +820,7 @@ static void __contec_mcs341_device_idsel_complete( void ){
 		}
 		// 
 		cps_common_outb( (unsigned long) ( map_devbaseaddr[0] ) , (deviceNumber | 0x80 ) );
-		contec_cps_micro_sleep( 1 * USEC_PER_MSEC );
+		contec_cps_micro_delay_sleep( 1 * USEC_PER_MSEC, isUsedDelay );
 
 		nInterrupt = (deviceNumber / 4) + 1;
 		for( cnt = 0; cnt < nInterrupt; cnt++ )
@@ -821,13 +831,20 @@ static void __contec_mcs341_device_idsel_complete( void ){
 /**
 	@~English
 	@brief This function is CPS-Stack Devices Initialize.
+	@param isUsedDelay : 0... sleep, 1... delay
+	@par This function is sub-routine of Initialize.
 	@return Success 0 , Failed not 0.
 	@~Japanese
 	@brief MCS341 Controllerのスタックデバイスを初期化する関数。
+	@param isUsedDelay : 0... sleep, 1... delay
 	@note 2016.05.16 FPGAのRev1以降の場合、
+	@note 2017.01.16 mcs341_controller_timer_function実行中の呼び出しの場合、割込処理中にsleepが行われてしまい、カーネルパニックになるため, sleepからdelayに変更
+	引数追加に伴い　間数名をcontec_mcs341_controller_cpsDevicesInitから_contec_mcs341_controller_cpsDevicesInitに変更
+	@par この関数は内部関数です。初期化を完了させるためのサブルーチンになります。
 	@return 成功 0, 失敗 0以外.
 **/
-static int contec_mcs341_controller_cpsDevicesInit(void){
+
+static int _contec_mcs341_controller_cpsDevicesInit( int isUsedDelay ){
 	unsigned char valb = 0;
 	unsigned int timeout = 0;
 
@@ -859,8 +876,8 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETRESET;
 		contec_mcs341_controller_setSystemInit();
-			do{
-			contec_cps_micro_sleep(5);
+		do{
+			contec_cps_micro_delay_sleep(5, isUsedDelay );
 //		cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
 			//contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
 			valb = contec_mcs341_controller_getSystemStatus();
@@ -872,8 +889,8 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 			When many devices was connected more than 15, getDeviceNumber gets 14 values.
 			CPS-MCS341 must wait 1 msec.
 		*/ 		
-		contec_cps_micro_sleep( 1 * USEC_PER_MSEC );	
-		__contec_mcs341_device_idsel_complete();
+		contec_cps_micro_delay_sleep( (1 * USEC_PER_MSEC), isUsedDelay );
+		__contec_mcs341_device_idsel_complete(isUsedDelay);
 	/*
 		cps_common_outb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_RESET_WADDR) ,
 			CPS_MCS341_RESET_SET_IDSEL_COMPLETE );
@@ -882,11 +899,11 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 			cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb);
 		}while( valb & CPS_MCS341_SYSTEMINIT_INITBUSY );
 	*/
-				mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETINTERRUPT;
-				contec_mcs341_controller_setSystemInit();
+		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETINTERRUPT;
+		contec_mcs341_controller_setSystemInit();
 		timeout = 0;
 		do{
-			contec_cps_micro_sleep(5);
+			contec_cps_micro_delay_sleep( 5, isUsedDelay );
 //		cps_common_inpb( (unsigned long)(map_baseaddr + CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR), &valb );
 //		contec_mcs341_inpb( CPS_CONTROLLER_MCS341_SYSTEMINIT_ADDR, &valb );
 			valb = contec_mcs341_controller_getSystemStatus();
@@ -898,10 +915,22 @@ static int contec_mcs341_controller_cpsDevicesInit(void){
 		When many devices was connected more than 15, getDeviceNumber gets 14 values.
 		CPS-MCS341 must wait 1 msec.
 	*/ 	
-	contec_cps_micro_sleep( 1 * USEC_PER_MSEC );
+	contec_cps_micro_delay_sleep( (1 * USEC_PER_MSEC), isUsedDelay );
 
 	return 0;
 
+}
+
+/**
+	@~English
+	@brief The wrapper function is CPS-Stack Devices Initialize.
+	@return Success 0 , Failed not 0.
+	@~Japanese
+	@brief MCS341 Controllerのスタックデバイスを初期化するラッパー関数。
+	@return 成功 0, 失敗 0以外.
+**/
+static int contec_mcs341_controller_cpsDevicesInit(void){
+	return _contec_mcs341_controller_cpsDevicesInit( 0 );
 }
 EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsDevicesInit);
 
@@ -915,9 +944,32 @@ EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsDevicesInit);
 	@param childType: 子基板番号
 	@return 成功 0, 失敗 0以外.
 **/
-static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int childType)
+static unsigned int _contec_mcs341_controller_cpsChildUnitInit(unsigned int childType, int isUsedDelay)
 {
 	
+	DEBUG_MODULE_PARAM(KERN_INFO"child unit %d\n", childType );
+
+	// init pin mode
+	contec_mcs341_controller_setPinMode(
+		CPS_MCS341_SETPINMODE_3G3_INPUT,
+		CPS_MCS341_SETPINMODE_3G4_INPUT,
+		CPS_MCS341_SETPINMODE_CTSSUB_INPUT,
+		CPS_MCS341_SETPINMODE_RTSSUB_INPUT
+	);
+
+	if( child_unit != CPS_CHILD_UNIT_NONE ){
+
+		// POWER ON ( 24V <USB> )
+		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
+		contec_mcs341_controller_setSystemInit();
+		// Wait ( 5sec )
+		contec_cps_micro_delay_sleep(5 * USEC_PER_SEC, isUsedDelay);
+
+		// RESET
+		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
+		contec_mcs341_controller_setSystemInit();
+	}
+
 	switch( childType ){
 	case CPS_CHILD_UNIT_INF_MC341B_00:		// CPS-MCS341G-DS1-111
 		contec_mcs341_controller_setPinMode(
@@ -955,31 +1007,15 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 		break;
 	case CPS_CHILD_UNIT_NONE:
 	default:
-		contec_mcs341_controller_setPinMode(
-			CPS_MCS341_SETPINMODE_3G3_INPUT,
-			CPS_MCS341_SETPINMODE_3G4_INPUT,
-			CPS_MCS341_SETPINMODE_CTSSUB_INPUT,
-			CPS_MCS341_SETPINMODE_RTSSUB_INPUT
-		);
 		//break;
 		return 0;
 	}
-
-	// POWER ON
-	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_POWER;
-	contec_mcs341_controller_setSystemInit();
-	// Wait ( 5sec )
-	contec_cps_micro_sleep(5 * USEC_PER_SEC);
-	// RESET
-	mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_SETEXTEND_RESET;
-	contec_mcs341_controller_setSystemInit();
-
 
 	// GPIO(0_23) High Settings
 	switch( childType ){
 	case CPS_CHILD_UNIT_INF_MC341B_40:
 		// fixed HL8528 Bubble Interrupt!
-		contec_cps_micro_sleep( 2500 * USEC_PER_MSEC ); // 2.5 sec wait
+		contec_cps_micro_delay_sleep( 2500 * USEC_PER_MSEC , isUsedDelay ); // 2.5 sec wait
 		mcs341_systeminit_reg |= CPS_MCS341_SYSTEMINIT_3G4_SETOUTPUT;
 		contec_mcs341_controller_setSystemInit();
 		break;
@@ -987,8 +1023,22 @@ static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int child
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsChildUnitInit);
 
+/**
+	@~English
+	@brief This wrapper function is CPS-Child Devices Initialize.
+	@param childType: Child Board Type
+	@return Success 0 , Failed not 0.
+	@~Japanese
+	@brief MCS341 Controllerの子基板を初期化する関数。
+	@param childType: 子基板番号
+	@return 成功 0, 失敗 0以外.
+**/
+static unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int childType)
+{
+	return _contec_mcs341_controller_cpsChildUnitInit( childType, 0 );
+}
+EXPORT_SYMBOL_GPL(contec_mcs341_controller_cpsChildUnitInit);
 
 //-------------------------- Timer Function ------------------------
 
@@ -1039,6 +1089,10 @@ void mcs341_controller_timer_function(unsigned long arg)
 				contec_mcs341_controller_setSystemInit();
 			}
 
+			shutdown_sequence = 1;/* Ver 1.0.14 */
+
+			DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>: reset count %d.\n",reset_count);
+
 			reset_count += 1;
 			if( reset_count > (5 * 50) ){ //about 5 sec over
 				printk(KERN_INFO"RESET !\n");
@@ -1052,15 +1106,25 @@ void mcs341_controller_timer_function(unsigned long arg)
 		}
 	}
 
-	if( watchdog_timer_msec ){
-		contec_mcs341_controller_clear_watchdog();
+	/* Ver 1.0.14 Do not run without shutdown sequence. */
+	if( !shutdown_sequence ){
+		/* Ver.1.0.13 Keep the system status of FPGA. If system status of FPGA was initialized, timer function is restarted the FPGA. */
+		if( CPS_MCS341_SYSTEMSTATUS_BUSY( contec_mcs341_controller_getSystemStatus() ) ){
+			DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:FPGA re-init sequence!\n");
+			// restarting initialize !!
+			mcs341_systeminit_reg = 0;
+			if( _contec_mcs341_controller_cpsDevicesInit( 1 ) == 0 ){
+				_contec_mcs341_controller_cpsChildUnitInit(child_unit, 1);
+			}
+			DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:last status %x \n",mcs341_systeminit_reg);
+		}
+	}else{
+			// After Shutdown /Reboot sequence
+			DEBUG_TIMER_FUNC_PRINT(KERN_INFO"<cps-driver>:Do not run restart sequence!\n");
 	}
 
-	/* Ver.1.0.13 Keep the system status of FPGA. If system status of FPGA was initialized, timer function is restarted the FPGA. */
-	if( CPS_MCS341_SYSTEMSTATUS_BUSY( contec_mcs341_controller_getSystemStatus() ) ){
-		// restarting initialize !!
-		contec_mcs341_controller_cpsDevicesInit();
-		contec_mcs341_controller_cpsChildUnitInit(child_unit);
+	if( watchdog_timer_msec ){
+		contec_mcs341_controller_clear_watchdog();
 	}
 
 	mod_timer(tick, jiffies + CPS_CONTROLLER_MCS341_TICK );
@@ -1734,9 +1798,7 @@ static int contec_mcs341_controller_init(void)
 
 	if( (ret = contec_mcs341_controller_cpsDevicesInit() ) == 0 ){
 
-		DEBUG_MODULE_PARAM("child unit %d\n", child_unit );
-
-		contec_mcs341_controller_cpsChildUnitInit(child_unit);
+			contec_mcs341_controller_cpsChildUnitInit(child_unit);
 
 		//2016.02.17 timer add Ver.1.0.7
 		init_timer(&mcs341_timer);
@@ -1745,7 +1807,7 @@ static int contec_mcs341_controller_init(void)
 		mcs341_timer.expires = jiffies + CPS_CONTROLLER_MCS341_TICK;
 		add_timer(&mcs341_timer);
 
-		DEBUG_MODULE_PARAM("reset_button_check_mode %d\n",reset_button_check_mode);
+		DEBUG_MODULE_PARAM(KERN_INFO"reset_button_check_mode %d\n",reset_button_check_mode);
 
 		if( !reset_button_check_mode ){
 

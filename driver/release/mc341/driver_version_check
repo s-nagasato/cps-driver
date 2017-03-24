@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CPS_DRIVER_MANUFACTURE_ID=0019
+CPS_DRIVER_MANUFACTURE_ID=0021
 
 CPS_SPIDIO_VERSION=$(/sbin/modinfo ./cpsdio_spi.ko | grep version: | awk 'NR == 1{ print $2 }')
 

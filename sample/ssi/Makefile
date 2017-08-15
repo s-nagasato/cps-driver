@@ -1,4 +1,4 @@
-subdirs = CalibCommand Calibration measure 
+subdirs = CalibCommand Calibration measure queryDevice
 MAKE=make --no-print-directory
 
 all:	

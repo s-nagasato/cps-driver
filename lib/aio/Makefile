@@ -1,13 +1,13 @@
 #CC = gcc
 #LD = ld
-CC = arm-linux-gnueabi-gcc
-LD = arm-linux-gnueabi-ld
+CC := arm-linux-gnueabi-gcc
+LD := arm-linux-gnueabi-ld
 TARGET=libCpsAio.so
 OBJ=libcpsaio.o
 SRC=libcpsaio.c
 CFLAGS= -g -Wall
 
-VERSION =1.0.8
+VERSION =1.0.9
 
 # CPS_SDK_MACRO_CHECK ( without CONPROSYS SDK )
 ifneq "$(CPS_SDK_INSTALL_FULLDIR)" ""

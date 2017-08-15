@@ -1,5 +1,5 @@
 /* 
--- CalibRead.c 
+-- queryDeviceName.c
 -- Copyright (c) 2016 Syunsuke Okamoto
 --
 -- This software is released under the MIT License.
@@ -32,48 +32,25 @@
 #include <fcntl.h>
 #include <time.h>
 #include <sys/time.h>
-#include "libcpsssi.h"
+#include "libcpsdio.h"
 
-int main(int argc, char *argv[]){
+int main(){
 
-	short Id;
-	unsigned char devName[32];
-	int isGain;
-	double w3off, w4off, gain;
-	unsigned char cw3off, cw4off;
+	int cnt;
+	int iRet;
+	char DevName[16];
+	char Dev[32];
 
-	unsigned int ch;
-
-	if( argc > 3 ){
-		strcpy(devName, argv[1]);
-		sscanf(argv[2], "%x", &ch);
-		if( strcmp(argv[3], "gain") == 0 ){
-			isGain = 1;
-		}else if( strcmp(argv[3],"offset") == 0 ){
-			isGain = 0;
+	cnt = 0;
+	do{
+		iRet = ContecCpsDioQueryDeviceName(cnt, DevName,Dev );
+		if( iRet == 0 ){
+			printf("Device %s DeviceName : %s\r\n", Dev, DevName);
 		}
-	}else{
-		printf(" Calib Read \n");
-		printf(" CalibRead <device> <channel> <gain or offset> <gain-value or 3-wire-offset value> <4-wire-offset value>\n\n");
-		printf(" [device] : device name (example cpsssi0) \n");
-		printf(" [channel] : channel number  (example 0) \n");
-		printf(" [gain or offset] : gain or offset ( example offset)\n");
-		printf(" CalibRead cpsssi0 0 offset \n");		
-		return ( 1 );
-	}
+		cnt ++;
+	}while(iRet == 0);
 
-	/* デバイスをopenする */
-	ContecCpsSsiInit(devName, &Id);
-	if( isGain ){
-		ContecCpsSsiReadCalibrationGain(Id, &gain);
-		printf("gain %lf\n", gain );
-	}else{
-		ContecCpsSsiReadCalibrationOffset(Id, ch, &w3off, &w4off );
-		printf("ch %d wire-3 %lf wire-4 %lf \n", ch, w3off, w4off );
-	}
 
-	/* デバイスを閉じる*/
-	ContecCpsSsiExit(Id);
 	return 0;
 }
 

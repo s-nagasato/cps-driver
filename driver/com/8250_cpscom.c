@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.2"
+#define DRV_VERSION	"1.0.3"
 
 /*
  * Configuration:
@@ -71,6 +71,15 @@ static int serial_index(struct uart_port *port)
 }
 
 static unsigned int skip_txen_test; /* force skip of txen test at init time */
+
+ // 2017.09.20
+ static int contec_mcs341_create_8250_device_sysfs(struct device *);
+ static void contec_mcs341_remove_8250_device_sysfs(struct device *);
+ 
+ static int lora_interrupt = 0;
+ static int lora_power = 0;
+ static int lora_deviceID = 0;
+
 
 /*
  * Debugging.
@@ -3053,6 +3062,8 @@ static int cpscom_getchannel_of_device( int devNum ){
 
 		case CPS_DEVICE_COM1PD:
 		case CPS_DEVICE_COM1PC:
+		//add 2017.09.01
+		case CPS_DEVICE_COM1QL:
 			return 1;	
 		default:
 			return 0;	
@@ -3161,6 +3172,8 @@ cpscom_register_ports(struct uart_driver *drv, struct device *dev)
 				cpscom_init_fixed_type_port(up, up->port.type);
 			DEBUG_INITCOMPORT(KERN_INFO " uart_line:%d \n",up->port.line);
 			uart_add_one_port(drv, &up->port);
+
+			contec_mcs341_create_8250_device_sysfs(up->port.private_data);
 		}
 	}
 }
@@ -3460,8 +3473,9 @@ static int __devexit cpscom_remove(struct platform_device *dev)
 	for (i = 0; i < nr_uarts; i++) {
 		struct uart_8250_port *up = &cpscom_ports[i];
 
-//		if (up->port.dev == &dev->dev)
+		//		if (up->port.dev == &dev->dev)
 		if (up->port.line != -1 ){
+			contec_mcs341_remove_8250_device_sysfs(up->port.private_data);
 			cpscom_unregister_port(i);
 			cpscom_release_port(&up->port);
 		}
@@ -3644,12 +3658,246 @@ void cpscom_unregister_port(int line)
 	uart->port.flags &= ~UPF_BOOT_AUTOCONF;
 	uart->port.type = PORT_UNKNOWN;
 	uart->capabilities = uart_config[uart->port.type].flags;
-	uart_add_one_port(&cpscom_reg, &uart->port);
+	// uart_add_one_port(&cpscom_reg, &uart->port);
 
 	mutex_unlock(&serial_mutex);
 }
 EXPORT_SYMBOL(cpscom_unregister_port);
+// void cpscom_unregister_port(int line)
+// {
+// 	struct uart_8250_port *uart;
 
+// 	if( line == -1 ) return;
+
+// 	uart = &cpscom_ports[line];
+// 	mutex_lock(&serial_mutex);
+// 	uart_remove_one_port(&cpscom_reg, &uart->port);
+// 	uart->port.dev = NULL;
+// 	// mutex_lock(&serial_mutex);
+// 	// uart_remove_one_port(&cpscom_reg, &uart->port);
+
+// 	// uart->port.flags &= ~UPF_BOOT_AUTOCONF;
+// 	// uart->port.type = PORT_UNKNOWN;
+// 	// uart->capabilities = uart_config[uart->port.type].flags;
+// 	// uart_add_one_port(&cpscom_reg, &uart->port);
+
+// 	mutex_unlock(&serial_mutex);
+// }
+// EXPORT_SYMBOL(cpscom_unregister_port);
+//ここから
+ // 2017.09.20
+ //2017.09.17
+ /**
+	 @~English
+	 @brief This function is shown device file.
+	 @param drvf : device_driver structure
+	 @param buf : buffer
+	 @return Success : Size
+	 @~Japanese
+	 @brief MCS341 test_show間数
+	 @param drvf : device_driver 構造体
+	 @param buf : buffer
+	 @return
+ **/
+static int contec_mcs341_power_show(struct device *dev, struct device_attribute *attr,char *buf )
+{
+	pr_info("%s",__FUNCTION__);
+	return sprintf(buf,"%d", lora_power);
+}
+
+/**
+	@~English
+	@brief This function is stored device file.
+	@param drvf : device_driver structure
+	@param buf : buffer
+	@param count : count
+	@return Success : Size
+	@~Japanese
+	@brief MCS341 Status1 Led をデバイスファイルから操作する関数
+	@param drvf : device_driver 構造体
+	@param buf : buffer
+	@param count : count
+	@return Size
+	**/
+static int contec_mcs341_power_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
+{
+	unsigned short valb1=0x5003;
+	unsigned short valb2=0x0;
+	unsigned short valb3=0x11;
+
+	struct uart_port * uport = dev_get_drvdata(dev);
+	
+	unsigned int devnum = 
+		contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
+
+	unsigned int addr1 = 0x30;
+	unsigned int addr2 = 0x34;		
+
+	printk("address%s=%x\n",__FUNCTION__,(unsigned int)uport->private_data);
+	printk("dev_store=%lx\n",(unsigned long)dev);
+	printk("mapbase=%lx\n",(unsigned long)uport->mapbase);
+	printk("device_number=%x\n",devnum);
+
+	switch( buf[0] ){
+		case '0':// Reset有効
+		lora_power=0;
+		printk(KERN_INFO"case 0 %s\n",__FUNCTION__);
+		contec_mcs341_device_outw(devnum, addr1, valb1);
+		contec_mcs341_device_outw(devnum, addr2, valb2);
+		break;
+		case '1':// Reset解除
+		lora_power=1;
+		printk(KERN_INFO"case 1 %s\n",__FUNCTION__);
+		contec_mcs341_device_outw(devnum, addr1, valb1);
+		contec_mcs341_device_outw(devnum, addr2, valb3);		
+		break;
+	}
+
+	return strlen(buf);
+
+}
+// 2017.09.20
+static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+	contec_mcs341_power_show, contec_mcs341_power_store );
+
+ // 2017.09.20
+ //2017.09.17
+ /**
+	 @~English
+	 @brief This function is shown device file.
+	 @param drvf : device_driver structure
+	 @param buf : buffer
+	 @return Success : Size
+	 @~Japanese
+	 @brief MCS341 test_show間数
+	 @param drvf : device_driver 構造体
+	 @param buf : buffer
+	 @return
+ **/
+ static int contec_mcs341_interrupt_show(struct device *dev, struct device_attribute *attr,char *buf )
+ {
+	pr_info("%s",__FUNCTION__);
+	return sprintf(buf,"%d", lora_interrupt);
+ }
+ 
+ /**
+	 @~English
+	 @brief This function is stored device file.
+	 @param drvf : device_driver structure
+	 @param buf : buffer
+	 @param count : count
+	 @return Success : Size
+	 @~Japanese
+	 @brief MCS341 Status1 Led をデバイスファイルから操作する関数
+	 @param drvf : device_driver 構造体
+	 @param buf : buffer
+	 @param count : count
+	 @return Size
+	 **/
+ static int contec_mcs341_interrupt_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
+ {
+
+	switch( buf[0] ){
+		case '0':// Reset有効
+		lora_interrupt=0;
+		printk(KERN_INFO"case 0 %s",__FUNCTION__);
+		break;
+		case '1':// Reset解除
+		lora_interrupt=1;
+		printk(KERN_INFO"case 1 %s",__FUNCTION__);
+		break;
+	}
+
+	return strlen(buf);
+
+	// return 0;
+ }
+
+ // 2017.09.20
+ static DEVICE_ATTR(interrupt , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+	 contec_mcs341_interrupt_show, contec_mcs341_interrupt_store );
+ 
+//kokokara
+ // 2017.09.20
+ //2017.09.17
+ /**
+	 @~English
+	 @brief This function is shown device file.
+	 @param drvf : device_driver structure
+	 @param buf : buffer
+	 @return Success : Size
+	 @~Japanese
+	 @brief MCS341 test_show間数
+	 @param drvf : device_driver 構造体
+	 @param buf : buffer
+	 @return
+ **/
+ static int contec_mcs341_lora_deviceID_show(struct device *dev, struct device_attribute *attr,char *buf )
+ {
+	struct uart_port * uport = dev_get_drvdata(dev);
+	
+	unsigned int devnum = 
+		contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
+
+	lora_deviceID = contec_mcs341_device_productid_get( devnum );
+	printk("%s:%d\n",__FUNCTION__,lora_deviceID);
+	
+	return sprintf(buf,"%d", lora_deviceID);
+ }
+ 
+ 
+ static DEVICE_ATTR(id , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+	contec_mcs341_lora_deviceID_show, NULL );
+	
+//kokomade
+
+	 
+ /**
+	 @~English
+	 @brief This function create device file.
+	 @param *dev : device structure
+	 @return Success : 0 , Failed : otherwise
+	 @~Japanese
+	 @brief MCS341　デバイスファイルを作成する関数
+	 @param *dev : device 構造体
+	 @return 成功:0 ,失敗：0以外
+ **/
+ static int contec_mcs341_create_8250_device_sysfs(struct device *devp){
+ 
+	 int err;
+	 struct uart_port * uport = dev_get_drvdata(devp);
+	 
+	 unsigned int devnum = 
+		 contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
+ 
+	 lora_deviceID = contec_mcs341_device_productid_get( devnum );
+
+    //  printk("lora_deviceID=%d",lora_deviceID);
+	 if(lora_deviceID == CPS_DEVICE_COM1QL){
+		err = device_create_file(devp, &dev_attr_dev_power);
+		err |= device_create_file(devp, &dev_attr_interrupt);
+	}
+	 err |= device_create_file(devp,&dev_attr_id);
+	//  printk("err=%d",err);
+	 return err;
+ }
+ 
+ // /**
+ // 	@~English
+ // 	@brief This function create device file.
+ // 	@param *dev : platform_driver
+ // 	@~Japanese
+ // 	@brief MCS341　デバイスファイルを削除する関数
+ // 	@param *dev : platform_driver 構造体
+ // **/
+ static void contec_mcs341_remove_8250_device_sysfs(struct device *devp)
+ // static void contec_mcs341_remove_8250_driver_sysfs(struct platform_driver *devp)
+ {
+	device_remove_file(devp, &dev_attr_dev_power);
+	device_remove_file(devp, &dev_attr_interrupt);
+	device_remove_file(devp,&dev_attr_id);
+ }
+//ここまで
 static int __init cpscom_init(void)
 {
 	int ret;
@@ -3690,7 +3938,7 @@ static int __init cpscom_init(void)
 	if (ret == 0)
 		goto out;
 
-#ifdef CONFIG_SPARC
+	#ifdef CONFIG_SPARC
 	sunserial_unregister_minors(&cpscom_reg, UART_NR);
 #else
 	uart_unregister_driver(&cpscom_reg);

@@ -40,6 +40,7 @@ int main(int argc, char *argv[]) {
 	short Id;
 
 //	unsigned char dat[] = { 0x01, 0x02, 0x04,0x08,0x10,0x20,0x40,0x80 };
+	unsigned char devName[32]="";
 	unsigned char dat[] = { 0x00, 0x55, 0xAA };
 	unsigned char dat2;
 	unsigned int cnt=0;
@@ -72,7 +73,7 @@ int main(int argc, char *argv[]) {
 
 
 	/* デバイスをopenする */
-	ContecCpsDioInit("cpsdio0", &Id);
+	ContecCpsDioInit(devName, &Id);
 
 #ifdef CONFIG_DIO_BL
 	ContecCpsDioSetInternalPowerSupply( Id, (unsigned char)isPowerSupply );

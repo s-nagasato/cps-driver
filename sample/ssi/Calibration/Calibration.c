@@ -32,7 +32,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <sys/time.h>
-#include "../../../include/libcpsssi.h"
+#include "libcpsssi.h"
 
 int Calibration( short Id, unsigned int ch, unsigned int pattern , double ohm , int avg_num )
 {

@@ -67,7 +67,7 @@ typedef void (*PCONTEC_CPS_CNT_INT_CALLBACK)(short, short, long, long, void *);
 extern unsigned long ContecCpsCntInit( char *DeviceName, short *Id );
 extern unsigned long ContecCpsCntExit( short Id );
 extern unsigned long ContecCpsCntGetErrorStrings( unsigned long code, char *Str );
-extern unsigned long ContecCpsCntQueryDeviceName( short Id, char *DeviceName, char *Device );
+extern unsigned long ContecCpsCntQueryDeviceName( short Index, char *DeviceName, char *Device );
 extern unsigned long ContecCpsCntGetMaxChannels( short Id, short *maxChannel );
 extern unsigned long ContecCpsCntGetVersion( short Id , unsigned char libVer[] , unsigned char drvVer[] );
 

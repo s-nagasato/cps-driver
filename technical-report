@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TECHNICAL_REPORT_VERSION="1.0.3"
+TECHNICAL_REPORT_VERSION="1.0.4"
 
 if [ $# -gt 0 ];then
  case $1 in
@@ -29,11 +29,11 @@ CPU_MODELNAME=$(cat /proc/cpuinfo | grep "model name" | awk -F: '{print $2}' )
 MEM_CAPA=$(cat /proc/meminfo | grep "MemTotal" | awk -F: '{ print $2}' )
 PC_NAME=$(sudo dmidecode -s system-product-name)
 
-if [ $CPU_MODELNAME="" ];then
+if [ "$CPU_MODELNAME" = "" ];then
 	CPU_MODELNAME=$(cat /proc/cpuinfo | grep "Processor" | awk -F: '{print $2}' )
 fi
 
-if [ $PC_NAME="" ];then
+if [ "$PC_NAME" = "" ];then
 	PC_NAME=$(cat /proc/cpuinfo | grep "Hardware" | awk -F: '{print $2}' )
 fi
 

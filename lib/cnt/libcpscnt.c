@@ -23,6 +23,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdio.h>
 
 #include "cpscnt.h"
 
@@ -32,9 +33,9 @@
  #include "libcpscnt.h"
 #endif
 
-#define CONTEC_CPSCNT_LIB_VERSION	"0.9.4"
+#define CONTEC_CPSCNT_LIB_VERSION	"0.9.5"
 
-#include <stdio.h>
+
 
 typedef struct __contec_cps_cnt_int_callback__
 {
@@ -144,19 +145,49 @@ unsigned long ContecCpsCntGetErrorStrings( unsigned long code, char *Str )
 	@brief CNT Library query Device.
 	@param Id : Device ID
 	@param DeviceName : Device Node Name ( cpscntX )
-	@param Device : Device Name ( CPS-CNT-0808L , etc )
+	@param Device : Device Name ( CPS-CNT-3202I , etc )
 	@return Success: CNT_ERR_SUCCESS
 	@~Japanese
-	@brief クエリデバイス関数（未実装）
+	@brief クエリデバイス関数
 	@param Id : デバイスID
 	@param DeviceName : デバイスノード名 ( cpscntX )
-	@param Device : デバイス型式名 (  CPS-CNT-0808Lなど )
+	@param Device : デバイス型式名 (  CPS-CNT-3202Iなど )
 	@return 成功: CNT_ERR_SUCCESS
 **/
-unsigned long ContecCpsCntQueryDeviceName( short Id, char *DeviceName, char *Device )
+unsigned long ContecCpsCntQueryDeviceName( short Index, char *DeviceName, char *Device )
 {
+	struct cpscnt_ioctl_string_arg	arg;
+	int len;
 
-	return CNT_ERR_SUCCESS;
+	char tmpDevName[16];
+	char baseDeviceName[16]="cpscnt";
+	char strNum[2]={0};
+	int findNum=0, cnt, ret;
+
+	short tmpId = 0;
+
+	for(cnt = 0;cnt < CPS_DEVICE_MAX_NUM ; cnt ++ ){
+		sprintf(tmpDevName,"%s%x",baseDeviceName, cnt);
+		ret = ContecCpsCntInit(tmpDevName, &tmpId);
+
+		if( ret == 0 ){
+			ioctl(tmpId, IOCTL_CPSCNT_GET_DEVICE_NAME, &arg);
+			ContecCpsCntExit(tmpId);
+
+			if(findNum == Index){
+				sprintf(DeviceName,"%s",tmpDevName);
+				sprintf(Device,"%s", arg.str);
+				return CNT_ERR_SUCCESS;
+			}else{
+				findNum ++;
+			}
+			memset(&tmpDevName,0x00, 16);
+			memset(&arg.str, 0x00, sizeof(arg.str)/sizeof(arg.str[0]));
+
+		}
+	}
+
+	return CNT_ERR_INFO_NOT_FIND_DEVICE;
 }
 
 /**

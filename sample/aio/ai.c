@@ -32,7 +32,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <sys/time.h>
-#include "../../include/libcpsaio.h"
+#include "libcpsaio.h"
 
 int main(int argc, char *argv[]){
 
@@ -45,6 +45,9 @@ int main(int argc, char *argv[]){
 	int isMulti = 0;
 	int isEx = 0;	
 	int ch;
+
+	unsigned char g = 0, o = 0;
+	int isNotCalibRead = 0;
 
 	double clk = 100.0; // 100 usec
 	
@@ -79,9 +82,18 @@ int main(int argc, char *argv[]){
 		ch = 8;
 	}
 
+	if( argc > 4 ){
+		sscanf(argv[4], "%d", &isNotCalibRead );
+	}
 
 	/* デバイスをopenする */
 	ContecCpsAioInit(devName, &Id);
+
+	if( !isNotCalibRead ){
+		ContecCpsAioReadAiCalibrationData( Id, 0, &g, &o );
+		ContecCpsAioSetAiCalibrationData( Id, CPSAIO_AI_CALIBRATION_SELECT_OFFSET, 0, CPSAIO_AI_CALIBRATION_RANGE_PM10, o );
+		ContecCpsAioSetAiCalibrationData( Id, CPSAIO_AI_CALIBRATION_SELECT_GAIN, 0, CPSAIO_AI_CALIBRATION_RANGE_PM10, g );
+	}
 
 	ContecCpsAioSetAiSamplingClock(Id, clk);
 

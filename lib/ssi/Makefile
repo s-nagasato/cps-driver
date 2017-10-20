@@ -1,13 +1,13 @@
 #CC = gcc
 #LD = ld
-CC = arm-linux-gnueabi-gcc
-LD = arm-linux-gnueabi-ld
+CC := arm-linux-gnueabi-gcc
+LD := arm-linux-gnueabi-ld
 TARGET=libCpsSsi.so
 OBJ=libcpsssi.o
 SRC=libcpsssi.c
 CFLAGS= -g -Wall
 
-VERSION =1.0.5
+VERSION =1.0.6
 
 # CPS_SDK_MACRO_CHECK ( without CONPROSYS SDK )
 ifneq "$(CPS_SDK_INSTALL_FULLDIR)" ""

@@ -1,13 +1,13 @@
 #CC = gcc
 #LD = ld
-CC = arm-linux-gnueabi-gcc
-LD = arm-linux-gnueabi-ld
+CC := arm-linux-gnueabi-gcc
+LD := arm-linux-gnueabi-ld
 TARGET=libCpsCnt.so
 OBJ=libcpscnt.o
 SRC=libcpscnt.c
 CFLAGS= -g -Wall
 
-VERSION =0.9.4
+VERSION =0.9.5
 
 # CPS_SDK_MACRO_CHECK ( without CONPROSYS SDK )
 ifneq "$(CPS_SDK_INSTALL_FULLDIR)" ""

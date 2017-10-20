@@ -30,7 +30,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <sys/time.h>
-#include "../../include/libcpscnt.h"
+#include "libcpscnt.h"
 
 int main(int argc, char *argv[]){
 	short Id;

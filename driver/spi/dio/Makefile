@@ -3,7 +3,7 @@ obj-m := cpsdio_spi.o
 PWD       := $(shell pwd)
 
 #cross build 
-CROSS_COMPILE=arm-linux-gnueabi-
+CROSS_COMPILE:=arm-linux-gnueabi-
 ARCH=arm
 
 # CPS_SDK_MACRO_CHECK ( without CONPROSYS SDK )

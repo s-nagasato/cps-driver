@@ -33,7 +33,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
-#include "../../../include/libcpsssi.h"
+#include "libcpsssi.h"
 
 #define PROGRAM_VERSION "1.0.0"
 

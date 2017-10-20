@@ -76,10 +76,10 @@ static unsigned int skip_txen_test; /* force skip of txen test at init time */
  static int contec_mcs341_create_8250_device_sysfs(struct device *);
  static void contec_mcs341_remove_8250_device_sysfs(struct device *);
  
+ // 2017.10.20
  static int lora_interrupt = 0;
  static int lora_power = 0;
  static int lora_deviceID = 0;
-
 
 /*
  * Debugging.
@@ -3658,66 +3658,35 @@ void cpscom_unregister_port(int line)
 	uart->port.flags &= ~UPF_BOOT_AUTOCONF;
 	uart->port.type = PORT_UNKNOWN;
 	uart->capabilities = uart_config[uart->port.type].flags;
+	//2017.10.20
 	// uart_add_one_port(&cpscom_reg, &uart->port);
 
 	mutex_unlock(&serial_mutex);
 }
 EXPORT_SYMBOL(cpscom_unregister_port);
-// void cpscom_unregister_port(int line)
-// {
-// 	struct uart_8250_port *uart;
 
-// 	if( line == -1 ) return;
-
-// 	uart = &cpscom_ports[line];
-// 	mutex_lock(&serial_mutex);
-// 	uart_remove_one_port(&cpscom_reg, &uart->port);
-// 	uart->port.dev = NULL;
-// 	// mutex_lock(&serial_mutex);
-// 	// uart_remove_one_port(&cpscom_reg, &uart->port);
-
-// 	// uart->port.flags &= ~UPF_BOOT_AUTOCONF;
-// 	// uart->port.type = PORT_UNKNOWN;
-// 	// uart->capabilities = uart_config[uart->port.type].flags;
-// 	// uart_add_one_port(&cpscom_reg, &uart->port);
-
-// 	mutex_unlock(&serial_mutex);
-// }
-// EXPORT_SYMBOL(cpscom_unregister_port);
-//ここから
  // 2017.09.20
- //2017.09.17
  /**
-	 @~English
-	 @brief This function is shown device file.
-	 @param drvf : device_driver structure
-	 @param buf : buffer
-	 @return Success : Size
 	 @~Japanese
-	 @brief MCS341 test_show間数
-	 @param drvf : device_driver 構造体
+	 @brief MCS341 contec_mcs341_power_show間数
+	 @param *dev : device 構造体
+	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
-	 @return
+	 @return lora_power : 0 または　1
  **/
 static int contec_mcs341_power_show(struct device *dev, struct device_attribute *attr,char *buf )
 {
-	pr_info("%s",__FUNCTION__);
 	return sprintf(buf,"%d", lora_power);
 }
 
 /**
-	@~English
-	@brief This function is stored device file.
-	@param drvf : device_driver structure
-	@param buf : buffer
-	@param count : count
-	@return Success : Size
 	@~Japanese
-	@brief MCS341 Status1 Led をデバイスファイルから操作する関数
-	@param drvf : device_driver 構造体
-	@param buf : buffer
-	@param count : count
-	@return Size
+	 @brief MCS341 contec_mcs341_power_store間数
+	 @param *dev : device 構造体
+	 @param *attr : device_attribute 構造体
+	 @param buf : buffer
+	 @param count : count
+	 @return buf : 0 または　1
 	**/
 static int contec_mcs341_power_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
 {
@@ -3733,26 +3702,18 @@ static int contec_mcs341_power_store(struct device *dev, struct device_attribute
 	unsigned int addr1 = 0x30;
 	unsigned int addr2 = 0x34;		
 
-	printk("address%s=%x\n",__FUNCTION__,(unsigned int)uport->private_data);
-	printk("dev_store=%lx\n",(unsigned long)dev);
-	printk("mapbase=%lx\n",(unsigned long)uport->mapbase);
-	printk("device_number=%x\n",devnum);
-
 	switch( buf[0] ){
-		case '0':// Reset有効
+		case '0':
 		lora_power=0;
-		printk(KERN_INFO"case 0 %s\n",__FUNCTION__);
 		contec_mcs341_device_outw(devnum, addr1, valb1);
 		contec_mcs341_device_outw(devnum, addr2, valb2);
 		break;
-		case '1':// Reset解除
+		case '1':
 		lora_power=1;
-		printk(KERN_INFO"case 1 %s\n",__FUNCTION__);
 		contec_mcs341_device_outw(devnum, addr1, valb1);
 		contec_mcs341_device_outw(devnum, addr2, valb3);		
 		break;
 	}
-
 	return strlen(buf);
 
 }
@@ -3761,76 +3722,52 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
 	contec_mcs341_power_show, contec_mcs341_power_store );
 
  // 2017.09.20
- //2017.09.17
  /**
-	 @~English
-	 @brief This function is shown device file.
-	 @param drvf : device_driver structure
-	 @param buf : buffer
-	 @return Success : Size
 	 @~Japanese
-	 @brief MCS341 test_show間数
-	 @param drvf : device_driver 構造体
+	 @brief MCS341 contec_mcs341_interrupt_show間数
+	 @param *dev : device 構造体
+	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
-	 @return
+	 @return lora_power : 0 または　1
  **/
  static int contec_mcs341_interrupt_show(struct device *dev, struct device_attribute *attr,char *buf )
  {
-	pr_info("%s",__FUNCTION__);
 	return sprintf(buf,"%d", lora_interrupt);
  }
  
  /**
-	 @~English
-	 @brief This function is stored device file.
-	 @param drvf : device_driver structure
-	 @param buf : buffer
-	 @param count : count
-	 @return Success : Size
 	 @~Japanese
-	 @brief MCS341 Status1 Led をデバイスファイルから操作する関数
-	 @param drvf : device_driver 構造体
+	 @brief MCS341 contec_mcs341_interrupt_store間数
+	 @param *dev : device 構造体
+	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @param count : count
-	 @return Size
+	 @return buf : 0 または　1
 	 **/
  static int contec_mcs341_interrupt_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
  {
-
 	switch( buf[0] ){
-		case '0':// Reset有効
+		case '0':
 		lora_interrupt=0;
-		printk(KERN_INFO"case 0 %s",__FUNCTION__);
 		break;
-		case '1':// Reset解除
+		case '1':
 		lora_interrupt=1;
-		printk(KERN_INFO"case 1 %s",__FUNCTION__);
 		break;
 	}
-
 	return strlen(buf);
-
-	// return 0;
  }
-
  // 2017.09.20
  static DEVICE_ATTR(interrupt , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 	 contec_mcs341_interrupt_show, contec_mcs341_interrupt_store );
  
-//kokokara
  // 2017.09.20
- //2017.09.17
  /**
-	 @~English
-	 @brief This function is shown device file.
-	 @param drvf : device_driver structure
-	 @param buf : buffer
-	 @return Success : Size
 	 @~Japanese
-	 @brief MCS341 test_show間数
-	 @param drvf : device_driver 構造体
+	 @brief MCS341 contec_mcs341_lora_deviceID_show間数
+	 @param *dev : device 構造体
+	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
-	 @return
+	 @return buf : 0x19 または 0x03　
  **/
  static int contec_mcs341_lora_deviceID_show(struct device *dev, struct device_attribute *attr,char *buf )
  {
@@ -3840,7 +3777,6 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
 		contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
 
 	lora_deviceID = contec_mcs341_device_productid_get( devnum );
-	printk("%s:%d\n",__FUNCTION__,lora_deviceID);
 	
 	return sprintf(buf,"%d", lora_deviceID);
  }
@@ -3848,19 +3784,12 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
  
  static DEVICE_ATTR(id , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 	contec_mcs341_lora_deviceID_show, NULL );
-	
-//kokomade
-
 	 
  /**
-	 @~English
-	 @brief This function create device file.
-	 @param *dev : device structure
-	 @return Success : 0 , Failed : otherwise
 	 @~Japanese
-	 @brief MCS341　デバイスファイルを作成する関数
+	 @brief MCS341　contec_mcs341_create_8250_device_sysfs関数
 	 @param *dev : device 構造体
-	 @return 成功:0 ,失敗：0以外
+	 @return err : 成功:0 ,失敗：0以外
  **/
  static int contec_mcs341_create_8250_device_sysfs(struct device *devp){
  
@@ -3872,33 +3801,27 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
  
 	 lora_deviceID = contec_mcs341_device_productid_get( devnum );
 
-    //  printk("lora_deviceID=%d",lora_deviceID);
 	 if(lora_deviceID == CPS_DEVICE_COM1QL){
 		err = device_create_file(devp, &dev_attr_dev_power);
 		err |= device_create_file(devp, &dev_attr_interrupt);
 	}
 	 err |= device_create_file(devp,&dev_attr_id);
-	//  printk("err=%d",err);
 	 return err;
  }
  
- // /**
- // 	@~English
- // 	@brief This function create device file.
- // 	@param *dev : platform_driver
- // 	@~Japanese
- // 	@brief MCS341　デバイスファイルを削除する関数
- // 	@param *dev : platform_driver 構造体
- // **/
+ /**
+ 	@~Japanese
+ 	@brief MCS341　contec_mcs341_remove_8250_device_sysfs関数
+ 	@param *devp : driver 構造体
+ **/
  static void contec_mcs341_remove_8250_device_sysfs(struct device *devp)
- // static void contec_mcs341_remove_8250_driver_sysfs(struct platform_driver *devp)
  {
 	device_remove_file(devp, &dev_attr_dev_power);
 	device_remove_file(devp, &dev_attr_interrupt);
 	device_remove_file(devp,&dev_attr_id);
  }
-//ここまで
-static int __init cpscom_init(void)
+
+ static int __init cpscom_init(void)
 {
 	int ret;
 

@@ -72,14 +72,13 @@ static int serial_index(struct uart_port *port)
 
 static unsigned int skip_txen_test; /* force skip of txen test at init time */
 
- // 2017.09.20
  static int contec_mcs341_create_8250_device_sysfs(struct device *);
  static void contec_mcs341_remove_8250_device_sysfs(struct device *);
  
- // 2017.10.20
  static int lora_interrupt = 0;
  static int lora_power = 0;
  static int lora_deviceID = 0;
+ static int led0_G = 0;
 
 /*
  * Debugging.
@@ -3332,10 +3331,21 @@ int cpscom_find_port(struct uart_port *p)
 #define CPSCOM_CONSOLE	NULL
 #endif
 
+
+
 static struct uart_driver cpscom_reg = {
 	.owner			= THIS_MODULE,
 	.driver_name		= "cpscom-serial",
 	.dev_name		= "ttyCPS",
+	.major			= CPSCOM_MAJOR,
+	.minor			= 0,
+	.cons			= CPSCOM_CONSOLE,
+};
+
+static struct uart_driver cpscom_reg_lora = {
+	.owner			= THIS_MODULE,
+	.driver_name		= "cpscom-serial",
+	.dev_name		= "ttyCPSLORA",
 	.major			= CPSCOM_MAJOR,
 	.minor			= 0,
 	.cons			= CPSCOM_CONSOLE,
@@ -3691,8 +3701,8 @@ static int contec_mcs341_power_show(struct device *dev, struct device_attribute 
 static int contec_mcs341_power_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
 {
 	unsigned short valb1=0x5003;
-	unsigned short valb2=0x0;
-	unsigned short valb3=0x11;
+	unsigned short valb2=0x0000;
+	unsigned short valb3=0x0011;
 
 	struct uart_port * uport = dev_get_drvdata(dev);
 	
@@ -3780,10 +3790,65 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
 	
 	return sprintf(buf,"%d", lora_deviceID);
  }
- 
- 
  static DEVICE_ATTR(id , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
 	contec_mcs341_lora_deviceID_show, NULL );
+
+//----
+ // 2017.09.20
+ /**
+	 @~Japanese
+	 @brief MCS341 contec_mcs341_led0_G_show間数
+	 @param *dev : device 構造体
+	 @param *attr : device_attribute 構造体
+	 @param buf : buffer
+	 @return lora_power : 0 または　1
+ **/
+static int contec_mcs341_led0_G_show(struct device *dev, struct device_attribute *attr,char *buf )
+{
+	return sprintf(buf,"%d", led0_G);
+}
+
+/**
+	@~Japanese
+	 @brief MCS341 contec_mcs341_led0_G_store間数
+	 @param *dev : device 構造体
+	 @param *attr : device_attribute 構造体
+	 @param buf : buffer
+	 @param count : count
+	 @return buf : 0 または　1
+	**/
+static int contec_mcs341_led0_G_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
+{
+	unsigned short valb1=0x5004;
+	unsigned short valb2=0x0000;
+	unsigned short valb3=0x0001;
+
+	struct uart_port * uport = dev_get_drvdata(dev);
+	
+	unsigned int devnum = 
+		contec_mcs341_device_deviceNum_get( (unsigned long) uport->mapbase) - 1;
+
+	unsigned int addr1 = 0x30;
+	unsigned int addr2 = 0x34;		
+
+	switch( buf[0] ){
+		case '0':
+		led0_G=0;
+		contec_mcs341_device_outw(devnum, addr1, valb1);
+		contec_mcs341_device_outw(devnum, addr2, valb2);
+		break;
+		case '1':
+		led0_G=1;
+		contec_mcs341_device_outw(devnum, addr1, valb1);
+		contec_mcs341_device_outw(devnum, addr2, valb3);		
+		break;
+	}
+	return strlen(buf);
+
+}
+static DEVICE_ATTR(led0_G , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH,
+	contec_mcs341_led0_G_show, contec_mcs341_led0_G_store );
+//---
 	 
  /**
 	 @~Japanese
@@ -3804,6 +3869,7 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
 	 if(lora_deviceID == CPS_DEVICE_COM1QL){
 		err = device_create_file(devp, &dev_attr_dev_power);
 		err |= device_create_file(devp, &dev_attr_interrupt);
+		err |= device_create_file(devp, &dev_attr_led0_G);
 	}
 	 err |= device_create_file(devp,&dev_attr_id);
 	 return err;
@@ -3818,7 +3884,8 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
  {
 	device_remove_file(devp, &dev_attr_dev_power);
 	device_remove_file(devp, &dev_attr_interrupt);
-	device_remove_file(devp,&dev_attr_id);
+	device_remove_file(devp, &dev_attr_id);
+	device_remove_file(devp, &dev_attr_led0_G);
  }
 
  static int __init cpscom_init(void)

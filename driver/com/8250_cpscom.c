@@ -3330,8 +3330,6 @@ int cpscom_find_port(struct uart_port *p)
 #define CPSCOM_CONSOLE	NULL
 #endif
 
-
-
 static struct uart_driver cpscom_reg = {
 	.owner			= THIS_MODULE,
 	.driver_name		= "cpscom-serial",
@@ -3681,6 +3679,7 @@ EXPORT_SYMBOL(cpscom_unregister_port);
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @return lora_power : 0 または　1
+	 @detail loraモジュールの状態を表示する
  **/
 static int contec_mcs341_power_show(struct device *dev, struct device_attribute *attr,char *buf )
 {
@@ -3695,7 +3694,8 @@ static int contec_mcs341_power_show(struct device *dev, struct device_attribute 
 	 @param buf : buffer
 	 @param count : count
 	 @return buf : 0 または　1
-	**/
+	 @detail loraモジュールをON/OFFする
+**/
 static int contec_mcs341_power_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
 {
 	unsigned short valb1=0x5003;
@@ -3735,6 +3735,7 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @return lora_power : 0 または　1
+ 	 @detail loraモジュールの割り込み状態を表示する(作成中)
  **/
  static int contec_mcs341_interrupt_show(struct device *dev, struct device_attribute *attr,char *buf )
  {
@@ -3749,7 +3750,8 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
 	 @param buf : buffer
 	 @param count : count
 	 @return buf : 0 または　1
-	 **/
+ 	 @detail loraモジュールへ割り込みを行う(作成中)
+ **/
  static int contec_mcs341_interrupt_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
  {
 	switch( buf[0] ){
@@ -3772,6 +3774,7 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @return buf : 0x19 または 0x03　
+ 	 @detail loraモジュールのdeviceIDを取得・表示する
  **/
  static int contec_mcs341_lora_deviceID_show(struct device *dev, struct device_attribute *attr,char *buf )
  {
@@ -3788,11 +3791,12 @@ static DEVICE_ATTR(dev_power , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |
 
  /**
 	 @~Japanese
-	 @brief MCS341 contec_mcs341_leds_status_show間数
+	 @brief MCS341 contec_mcs341_led0_status_show間数
 	 @param *dev : device 構造体
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @return lora_power : 0 または　1
+ 	 @detail loraモジュールのled0の状態を表示する
  **/
 static int contec_mcs341_led0_status_show(struct device *dev, struct device_attribute *attr,char *buf )
 {
@@ -3804,13 +3808,14 @@ static int contec_mcs341_led0_status_show(struct device *dev, struct device_attr
 
 /**
 	@~Japanese
-	 @brief MCS341 contec_mcs341_leds_status_store間数
+	 @brief MCS341 contec_mcs341_led0_status_store間数
 	 @param *dev : device 構造体
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @param count : count
 	 @return buf : 0 または　1
-	**/
+ 	 @detail loraモジュールのled0を点灯/消灯する
+**/
 static int contec_mcs341_led0_status_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
 {
 	unsigned short valb1=0x5004;
@@ -3843,23 +3848,25 @@ static DEVICE_ATTR(led0_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @return lora_power : 0 または　1
+ 	 @detail loraモジュールのled1の状態を表示する
  **/
 static int contec_mcs341_led1_status_show(struct device *dev, struct device_attribute *attr,char *buf )
 {
 	static u16 led1_status_show;
-	led1_status_show = leds_status >>2; 
+	led1_status_show = leds_status >> 2; 
 	led1_status_show &= 0x03; 
 	return sprintf(buf,"%d", led1_status_show);
 }
 
 /**
 	@~Japanese
-	 @brief MCS341 contec_mcs341_leds_status_store間数
+	 @brief MCS341 contec_mcs341_led1_status_store間数
 	 @param *dev : device 構造体
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @param count : count
 	 @return buf : 0 または　1
+  	 @detail loraモジュールのled1を点灯/消灯する
 **/
 static int contec_mcs341_led1_status_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
 {
@@ -3888,11 +3895,12 @@ static DEVICE_ATTR(led1_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
 
  /**
 	 @~Japanese
-	 @brief MCS341 contec_mcs341_leds1_status_show間数
+	 @brief MCS341 contec_mcs341_led2_status_show間数
 	 @param *dev : device 構造体
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @return lora_power : 0 または　1
+  	 @detail loraモジュールのled2の状態を表示する
  **/
 static int contec_mcs341_led2_status_show(struct device *dev, struct device_attribute *attr,char *buf )
 {
@@ -3904,12 +3912,13 @@ static int contec_mcs341_led2_status_show(struct device *dev, struct device_attr
 
 /**
 	@~Japanese
-	 @brief MCS341 contec_mcs341_leds_status_store間数
+	 @brief MCS341 contec_mcs341_led2_status_store間数
 	 @param *dev : device 構造体
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @param count : count
 	 @return buf : 0 または　1
+  	 @detail loraモジュールのled2を点灯/消灯する
 **/
 static int contec_mcs341_led2_status_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
 {
@@ -3938,11 +3947,12 @@ static DEVICE_ATTR(led2_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
 
  /**
 	 @~Japanese
-	 @brief MCS341 contec_mcs341_leds1_status_show間数
+	 @brief MCS341 contec_mcs341_leds3_status_show間数
 	 @param *dev : device 構造体
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @return lora_power : 0 または　1
+  	 @detail loraモジュールのled3の状態を表示する
  **/
 static int contec_mcs341_led3_status_show(struct device *dev, struct device_attribute *attr,char *buf )
 {
@@ -3954,12 +3964,13 @@ static int contec_mcs341_led3_status_show(struct device *dev, struct device_attr
 
 /**
 	@~Japanese
-	 @brief MCS341 contec_mcs341_leds_status_store間数
+	 @brief MCS341 contec_mcs341_led3_status_store間数
 	 @param *dev : device 構造体
 	 @param *attr : device_attribute 構造体
 	 @param buf : buffer
 	 @param count : count
 	 @return buf : 0 または　1
+   	 @detail loraモジュールのled3を点灯/消灯する
 **/
 static int contec_mcs341_led3_status_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count )
 {
@@ -3991,6 +4002,7 @@ static DEVICE_ATTR(led3_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
 	@brief MCS341　contec_mcs341_create_8250_device_sysfs関数
 	@param *dev : device 構造体
 	@return err : 成功:0 ,失敗：0以外
+	@detail comモジュール、loraモジュールのデバイスファイルを作成する
 **/
  static int contec_mcs341_create_8250_device_sysfs(struct device *devp){
  
@@ -4010,7 +4022,6 @@ static DEVICE_ATTR(led3_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
 		 err |= device_create_file(devp, &dev_attr_led2_restore);
 		 err |= device_create_file(devp, &dev_attr_led3_restore);
 
-		//   sysfs_create_link(&devp->kobj,&devp,"ttyCPSLORA");
 		}
 		err |= device_create_file(devp,&dev_attr_id);
 		return err;
@@ -4020,6 +4031,7 @@ static DEVICE_ATTR(led3_restore , S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROT
 	@~Japanese
 	@brief MCS341　contec_mcs341_remove_8250_device_sysfs関数
 	@param *devp : driver 構造体
+	@detail comモジュール、loraモジュールのデバイスファイルを削除する
 **/
 static void contec_mcs341_remove_8250_device_sysfs(struct device *devp)
 {

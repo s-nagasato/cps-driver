@@ -4093,7 +4093,7 @@ static void contec_mcs341_remove_8250_device_sysfs(struct device *devp)
 	if (ret == 0)
 		goto out;
 
-	#ifdef CONFIG_SPARC
+#ifdef CONFIG_SPARC
 	sunserial_unregister_minors(&cpscom_reg, UART_NR);
 #else
 	uart_unregister_driver(&cpscom_reg);

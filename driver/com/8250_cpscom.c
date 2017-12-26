@@ -3167,7 +3167,7 @@ cpscom_register_ports(struct uart_driver *drv, struct device *dev)
 		up->port.dev = dev;
 		if( up->port.line != -1 ){
 			if (up->port.flags & UPF_FIXED_TYPE)
-				cpscom_init_fixed_type_port(up, up->port.type);
+			cpscom_init_fixed_type_port(up, up->port.type);
 			DEBUG_INITCOMPORT(KERN_INFO " uart_line:%d \n",up->port.line);
 			uart_add_one_port(drv, &up->port);
 
@@ -3480,7 +3480,7 @@ static int __devexit cpscom_remove(struct platform_device *dev)
 	for (i = 0; i < nr_uarts; i++) {
 		struct uart_8250_port *up = &cpscom_ports[i];
 
-		//		if (up->port.dev == &dev->dev)
+//		if (up->port.dev == &dev->dev)
 		if (up->port.line != -1 ){
 			contec_mcs341_remove_8250_device_sysfs(up->port.private_data);
 			cpscom_unregister_port(i);

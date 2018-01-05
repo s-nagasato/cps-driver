@@ -1361,7 +1361,7 @@ static void contec_mcs341_device_outw(unsigned int dev, unsigned int offset, uns
 	DEBUG_ADDR_VAL_OUT(KERN_INFO "[out] cps-system: DevNumber : %x Offset Address : %x Value %hx \n", dev, offset, valw );
 	cps_common_outw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
 }
-
+EXPORT_SYMBOL_GPL(contec_mcs341_device_outw);
 /**
 	@~English
 	@brief MCS341 Device's address read 2byte data.
@@ -1379,7 +1379,7 @@ static void contec_mcs341_device_inpw(unsigned int dev, unsigned int offset, uns
 	cps_common_inpw( (unsigned long)(map_devbaseaddr[dev] + offset), valw );
 	DEBUG_ADDR_VAL_IN(KERN_INFO "[in]  cps-system: DevNumber : %x Offset Address : %x Value %hx\n", dev, offset, *valw );
 }
-
+EXPORT_SYMBOL_GPL(contec_mcs341_device_inpw);
 /**
 	@~English
 	@brief This function is find CPS-Device Device's Category.

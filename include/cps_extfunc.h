@@ -14,6 +14,7 @@ extern unsigned char contec_mcs341_device_mirror_get( int dev , int num );
 extern unsigned char contec_mcs341_device_deviceNum_get( unsigned long baseAddr );
 extern unsigned char contec_mcs341_device_serial_channel_get( unsigned long baseAddr );
 extern unsigned char contec_mcs341_controller_setInterrupt( int GroupNum , int isEnable );
+extern unsigned char contec_mcs341_controller_getInterrupt( int GroupNum );
 extern unsigned char contec_mcs341_controller_getDeviceNum( void );
 extern unsigned char contec_mcs341_device_logical_id_set( int dev, unsigned char valb );
 extern unsigned char contec_mcs341_device_logical_id_get( int dev );

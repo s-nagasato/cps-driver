@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.3"
+#define DRV_VERSION	"1.0.4"
 
 /*
  * Configuration:
@@ -229,18 +229,19 @@ static const struct serial8250_config uart_config[] = {
 	},
 	[PORT_16550A] = {
 		.name		= "16550A",
-/*
 		.fifo_size	= 16,
 		.tx_loadsz	= 16,
 		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_10,
-*/
+	},
+	[PORT_CPS16550] = { // old fpga
+		.name		="CPS16550",
 		.fifo_size	= 128,
 		.tx_loadsz	= 128,
 		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_00,
 		.flags		= UART_CAP_FIFO,
 	},
 
-	[PORT_CPS16550A] = {
+	[PORT_CPS16550A] = { // new fpga
 		.name		="CPS16550A",
 		.fifo_size	= 128,
 		.tx_loadsz	= 128,
@@ -1069,11 +1070,8 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 	unsigned char status1, status2;
 	unsigned int iersave;
 
-	unsigned char fctr, val;
-
 	up->port.type = PORT_16550A;
 	up->capabilities |= UART_CAP_FIFO;
-
 
 	/*
 	 * Check for presence of the EFR when DLAB is set.
@@ -1100,37 +1098,29 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 	serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_B);
 	if (serial_in(up, UART_EFR) == 0 && !broken_efr(up)) {
 		DEBUG_AUTOCONF("EFRv2 ");
-		if( up->port.iotype == UPIO_CPS ){
+		if( up->port.iotype == UPIO_CPS && up->port.line != -1 ){
+			unsigned char id = 0;
+			unsigned char fpgaVer = 0;
+			//  CONPROSYS Devices gets product id and fpga version.
+			id = contec_mcs341_device_productid_get( up->port.line / 2 );
+			fpgaVer = contec_mcs341_device_fpga_version_get( up->port.line / 2 );
+
+			if( ( id == CPS_DEVICE_COM2PC ||
+					id == CPS_DEVICE_COM2PD ||
+					id == CPS_DEVICE_COM1PC ||
+					id == CPS_DEVICE_COM1PC ) &&
+					fpgaVer < 2 ){
+				up->port.type = PORT_CPS16550;
+				serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A);
+				serial_outp(up, UART_EFR, 0);
+				serial_outp(up, UART_LCR, 0);
+				return;
+			}
+			// new fpga mode
 			up->port.type = PORT_CPS16550A;
-
-			//  product id and fpga ver get
-			// devnum = contec_mcs341_device_deviceNum_get( (unsigned long) up->mapbase) - 1;
-			// id = contec_mcs341_device_productid_get( devnum );
-			// f_ver =
-
-			serial_outp(up, UART_EFR, 0);
-
-			printk(KERN_WARNING "Set Trig 0x40");
-
-			fctr = serial_inp(up, UART_FCTR) & ~(UART_FCTR_TX);
-
-
-
-			serial_outp(up, UART_FCTR, fctr | UART_FCTR_RX);
-			val = serial_inp(up, UART_TRG);
-			//serial_outp(up, UART_TRG, 0x40);
-			printk(KERN_WARNING "Rx Trig %d\n", val);
-			serial_outp(up, UART_FCTR, fctr | UART_FCTR_TX);
-			val = serial_inp(up, UART_TRG);
-			printk(KERN_WARNING "Tx Trig %d\n", val);
-			serial_outp(up, UART_TRG, 0x10);
-
-			serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A);
-			printk(KERN_WARNING "Set Mode 4");
-			// serial_outp(up, UART_EFR, 0);
-			serial_outp(up, UART_EFR, 4);
+			//serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A);
+			//serial_outp(up, UART_EFR, 4);
 			serial_outp(up, UART_LCR, 0);
-			//up->port.type = PORT_16550A;
 			return;
 		}
 		autoconfig_has_efr(up);
@@ -1482,25 +1472,8 @@ static void autoconfig_irq(struct uart_8250_port *up)
 static inline void __stop_tx(struct uart_8250_port *p)
 {
 	if (p->ier & UART_IER_THRI) {
-		unsigned char lsr0;
-		unsigned short ivr0;
-		unsigned char con_int;
-
-		lsr0 = serial_in(p, UART_LSR);
-		contec_mcs341_device_inpw(0,0x3e, &ivr0 );
-		con_int = contec_mcs341_controller_getInterrupt( 0 );
-		printk(KERN_WARNING "ttyCPS%d: before stop tx IER: %x IVR : %x LSR : %x CTR int : %x\n",
-		   serial_index(&p->port), p->ier, ivr0, lsr0, con_int );
-
 		p->ier &= ~UART_IER_THRI;
 		serial_out(p, UART_IER, p->ier);
-
-		lsr0 = serial_in(p, UART_LSR);
-		contec_mcs341_device_inpw(0,0x3e, &ivr0 );
-		con_int = contec_mcs341_controller_getInterrupt( 0 );
-		printk(KERN_WARNING "ttyCPS%d: after stop tx IER: %x IVR : %x LSR : %x CTR int : %x\n",
-		   serial_index(&p->port), p->ier, ivr0, lsr0, con_int );
-
 	}
 }
 
@@ -1528,25 +1501,8 @@ static void cpscom_start_tx(struct uart_port *port)
 		container_of(port, struct uart_8250_port, port);
 
 	if (!(up->ier & UART_IER_THRI)) {
-		unsigned char lsr0;
-		unsigned short ivr0;
-		unsigned char con_int;
-
-		lsr0 = serial_in(up, UART_LSR);
-		contec_mcs341_device_inpw(0,0x3e, &ivr0 );
-		con_int = contec_mcs341_controller_getInterrupt( 0 );
-		printk(KERN_WARNING "ttyCPS%d: before start tx IER: %x IVR : %x LSR : %x CTR int : %x\n",
-		   serial_index(&up->port), up->ier, ivr0, lsr0, con_int );
-
 		up->ier |= UART_IER_THRI;
 		serial_out(up, UART_IER, up->ier);
-
-		lsr0 = serial_in(up, UART_LSR);
-		contec_mcs341_device_inpw(0,0x3e, &ivr0 );
-		con_int = contec_mcs341_controller_getInterrupt( 0 );
-
-		printk(KERN_WARNING "ttyCPS%d: after start tx IER: %x IVR : %x LSR : %x CTR int : %x\n",
-		   serial_index(&up->port), up->ier ,ivr0, lsr0, con_int );
 
 		if (up->bugs & UART_BUG_TXEN) {
 			unsigned char lsr;
@@ -1719,10 +1675,6 @@ static void transmit_chars(struct uart_8250_port *up)
 	count = up->tx_loadsz;
 	do {
 		serial_out(up, UART_TX, xmit->buf[xmit->tail]);
-		// 2018.01.16 debug
-		printk(KERN_WARNING "ttyCPS%d: set +0hex %x!\n",
-		   serial_index(&up->port), xmit->buf[xmit->tail] );
-
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 		up->port.icount.tx++;
 		if (uart_circ_empty(xmit))
@@ -1775,19 +1727,11 @@ static void cpscom_handle_port(struct uart_8250_port *up)
 
 	DEBUG_INTR("status = %x...", status);
 
-	printk(KERN_WARNING "ttyCPS%d: interrupt! LSR %x\n",
-	   serial_index(&up->port), status );
-
 	if (status & (UART_LSR_DR | UART_LSR_BI))
 		receive_chars(up, &status);
 	check_modem_status(up);
 	if (status & UART_LSR_THRE)
 		transmit_chars(up);
-
-	status = serial_inp(up, UART_LSR);
-
-	printk(KERN_WARNING "ttyCPS%d: interrupt end! LSR %x\n",
-	   serial_index(&up->port), status );
 
 	spin_unlock_irqrestore(&up->port.lock, flags);
 }
@@ -2286,6 +2230,21 @@ static int cpscom_startup(struct uart_port *port)
 		serial_outp(up, UART_LCR, 0);
 	}
 
+	/* CPS16550A set fifos */
+	if( up->port.type == PORT_CPS16550A ){
+		unsigned char fctr;
+
+		serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_B);
+
+		serial_outp(up, UART_TRG, 0x40);
+		fctr = serial_inp(up, UART_FCTR) & ~(UART_FCTR_TX);
+		serial_outp(up, UART_FCTR, fctr | UART_FCTR_RX);
+		serial_outp(up, UART_TRG, 0x40);
+		serial_outp(up, UART_FCTR, fctr | UART_FCTR_TX);
+
+		serial_outp(up, UART_LCR, 0);
+	}
+
 	if (is_real_interrupt(up->port.irq)) {
 		unsigned char iir1;
 		/*
@@ -2411,8 +2370,6 @@ dont_test_tx_en:
 		serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A );
 		serial_outp(up, UART_FCR, 0x80 );
 		serial_outp(up, UART_LCR, 0);
-	}else{
-		printk(KERN_WARNING"Do not FCR 0x80!!!");
 	}
 
 	spin_unlock_irqrestore(&up->port.lock, flags);
@@ -2984,7 +2941,7 @@ cpscom_verify_port(struct uart_port *port, struct serial_struct *ser)
 }
 
 /***
-	Ver.1.0.1 Ioctl called AutoRS485 Enable/Disable Function.  (from CPS16550 only )
+	Ver.1.0.1 Ioctl called AutoRS485 Enable/Disable Function.  (from CPS16550/CPS16550A only )
 ***/
 
 #define UART_FCTR_RS485 ( 0x08 )

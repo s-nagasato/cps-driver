@@ -23,8 +23,13 @@ extern unsigned short contec_mcs341_device_extension_value_set( int dev, int cat
 extern unsigned short contec_mcs341_device_extension_value_get( int dev, int cate, int num );
 extern unsigned short contec_mcs341_device_extension_value_all_clear( int dev, int cate );
 
+extern void contec_mcs341_device_outb(unsigned int dev, unsigned int offset, unsigned char valb );
+extern void contec_mcs341_device_inpb(unsigned int dev, unsigned int offset, unsigned char *valb );
 extern void contec_mcs341_device_outw(unsigned int dev, unsigned int offset, unsigned short valw );
 extern void contec_mcs341_device_inpw(unsigned int dev, unsigned int offset, unsigned short *valw );
+extern unsigned char contec_mcs341_device_board_version_get( int dev );
+extern unsigned char contec_mcs341_device_fpga_version_get( int dev );
+
 
 extern unsigned int contec_mcs341_controller_cpsChildUnitInit(unsigned int childType);
 /*********************************************************/

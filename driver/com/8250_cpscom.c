@@ -52,7 +52,7 @@
 #include "suncore.h"
 #endif
 
-#define DRV_VERSION	"1.0.3"
+#define DRV_VERSION	"1.0.4"
 
 /*
  * Configuration:
@@ -229,18 +229,19 @@ static const struct serial8250_config uart_config[] = {
 	},
 	[PORT_16550A] = {
 		.name		= "16550A",
-/*
 		.fifo_size	= 16,
 		.tx_loadsz	= 16,
 		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_10,
-*/
+	},
+	[PORT_CPS16550] = { // old fpga
+		.name		="CPS16550",
 		.fifo_size	= 128,
 		.tx_loadsz	= 128,
 		.fcr		= UART_FCR_ENABLE_FIFO | UART_FCR_R_TRIG_00,
 		.flags		= UART_CAP_FIFO,
 	},
 
-	[PORT_CPS16550A] = {
+	[PORT_CPS16550A] = { // new fpga
 		.name		="CPS16550A",
 		.fifo_size	= 128,
 		.tx_loadsz	= 128,
@@ -1097,12 +1098,29 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 	serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_B);
 	if (serial_in(up, UART_EFR) == 0 && !broken_efr(up)) {
 		DEBUG_AUTOCONF("EFRv2 ");
-		if( up->port.iotype == UPIO_CPS ){
+		if( up->port.iotype == UPIO_CPS && up->port.line != -1 ){
+			unsigned char id = 0;
+			unsigned char fpgaVer = 0;
+			//  CONPROSYS Devices gets product id and fpga version.
+			id = contec_mcs341_device_productid_get( up->port.line / 2 );
+			fpgaVer = contec_mcs341_device_fpga_version_get( up->port.line / 2 );
+
+			if( ( id == CPS_DEVICE_COM2PC ||
+					id == CPS_DEVICE_COM2PD ||
+					id == CPS_DEVICE_COM1PC ||
+					id == CPS_DEVICE_COM1PC ) &&
+					fpgaVer < 2 ){
+				up->port.type = PORT_CPS16550;
+				serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A);
+				serial_outp(up, UART_EFR, 0);
+				serial_outp(up, UART_LCR, 0);
+				return;
+			}
+			// new fpga mode
 			up->port.type = PORT_CPS16550A;
-			serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A);
-			serial_outp(up, UART_EFR, 0);
+			//serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A);
+			//serial_outp(up, UART_EFR, 4);
 			serial_outp(up, UART_LCR, 0);
-			//up->port.type = PORT_16550A;
 			return;
 		}
 		autoconfig_has_efr(up);
@@ -2212,6 +2230,21 @@ static int cpscom_startup(struct uart_port *port)
 		serial_outp(up, UART_LCR, 0);
 	}
 
+	/* CPS16550A set fifos */
+	if( up->port.type == PORT_CPS16550A ){
+		unsigned char fctr;
+
+		serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_B);
+
+		serial_outp(up, UART_TRG, 0x40);
+		fctr = serial_inp(up, UART_FCTR) & ~(UART_FCTR_TX);
+		serial_outp(up, UART_FCTR, fctr | UART_FCTR_RX);
+		serial_outp(up, UART_TRG, 0x40);
+		serial_outp(up, UART_FCTR, fctr | UART_FCTR_TX);
+
+		serial_outp(up, UART_LCR, 0);
+	}
+
 	if (is_real_interrupt(up->port.irq)) {
 		unsigned char iir1;
 		/*
@@ -2332,10 +2365,12 @@ static int cpscom_startup(struct uart_port *port)
 
 dont_test_tx_en:
 
-	serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A );
-	serial_outp(up, UART_FCR, 0x80 );
-	serial_outp(up, UART_LCR, 0);
-
+	// 2018.01.19
+	if( up->port.type != PORT_CPS16550A ){
+		serial_outp(up, UART_LCR, UART_LCR_CONF_MODE_A );
+		serial_outp(up, UART_FCR, 0x80 );
+		serial_outp(up, UART_LCR, 0);
+	}
 
 	spin_unlock_irqrestore(&up->port.lock, flags);
 
@@ -2906,7 +2941,7 @@ cpscom_verify_port(struct uart_port *port, struct serial_struct *ser)
 }
 
 /***
-	Ver.1.0.1 Ioctl called AutoRS485 Enable/Disable Function.  (from CPS16550 only )
+	Ver.1.0.1 Ioctl called AutoRS485 Enable/Disable Function.  (from CPS16550/CPS16550A only )
 ***/
 
 #define UART_FCTR_RS485 ( 0x08 )
